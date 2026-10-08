@@ -1,0 +1,172 @@
+import generatedManifestJson from "@/assets/manifest.gen.json";
+import { startLabel } from "@/content/labels/start.label";
+import type { FileRouteTypes } from "@/routeTree.gen";
+import type { AssetsManifest } from "@drincs/pixi-vn";
+
+/**
+ * Manifest for the assets used in the game.
+ * You can read more about the manifest here: https://pixijs.com/8.x/guides/components/assets#loading-multiple-assets
+ */
+export const manifest: AssetsManifest = {
+    bundles: [
+        ...generatedManifestJson.bundles,
+        // screens
+        {
+            name: "/" as FileRouteTypes["fullPaths"],
+            assets: [
+                {
+                    alias: "background_main_menu",
+                    src: "/backgrounds/main-menu.jpg",
+                },
+            ],
+        },
+        // labels
+        {
+            name: startLabel.id,
+            assets: [
+                {
+                    alias: "bg-lakeside",
+                    src: "/backgrounds/lakeside.jpg",
+                },
+            ],
+        },
+        // 隐藏剧场景一 · 星海图书馆（三张独立背景，段间互不延续）
+        // bundle 名与 label id 对齐（Game.onLoadingLabel 会按 label id 预载 bundle）
+        {
+            name: "hidden-s1-1",
+            assets: [
+                {
+                    alias: "bg-hidden-s1-1",
+                    src: "/场景/S1-1_借阅者_图书馆柜台.png",
+                },
+            ],
+        },
+        {
+            name: "hidden-s1-2",
+            assets: [
+                {
+                    alias: "bg-hidden-s1-2",
+                    src: "/场景/S1-2_索引规则_星空浮台.png",
+                },
+            ],
+        },
+        {
+            name: "hidden-s1-3",
+            assets: [
+                {
+                    alias: "bg-hidden-s1-3",
+                    src: "/场景/S1-3_未封存的卷宗_巨卷之前.png",
+                },
+            ],
+        },
+        // 隐藏剧场景二 · 天空之城（独立背景，与场景一不连续）
+        {
+            name: "hidden-s2-1",
+            assets: [
+                {
+                    alias: "bg-hidden-s2-1",
+                    src: "/场景/S2-1_云阶_云城石阶.png",
+                },
+            ],
+        },
+        {
+            name: "hidden-s2-2",
+            assets: [
+                {
+                    alias: "bg-hidden-s2-2",
+                    src: "/场景/S2-2_坠落之名_史书阁.png",
+                },
+            ],
+        },
+        {
+            name: "hidden-s2-3",
+            assets: [
+                {
+                    alias: "bg-hidden-s2-3",
+                    src: "/场景/S2-3_王座之前_云上王座厅.png",
+                },
+            ],
+        },
+        // 隐藏剧场景三 · 亚特兰蒂斯（终局，独立背景，与场景二不连续）
+        {
+            name: "hidden-s3-1",
+            assets: [
+                {
+                    alias: "bg-hidden-s3-1",
+                    src: "/场景/S3-1_深海之忆_海门.png",
+                },
+            ],
+        },
+        {
+            name: "hidden-s3-2",
+            assets: [
+                {
+                    alias: "bg-hidden-s3-2",
+                    src: "/场景/S3-2_摄政之谏_王庭正殿.png",
+                },
+            ],
+        },
+        {
+            name: "hidden-s3-3",
+            assets: [
+                {
+                    alias: "bg-hidden-s3-3",
+                    src: "/场景/S3-3_加冕_加冕台.png",
+                },
+                // 登基凭证彩蛋：小难梁「大赢鲸」梗图（S3-3 结尾全屏插入）
+                {
+                    alias: "bg-meme-dyj",
+                    src: "/场景/大赢鲸_登基凭证.png",
+                },
+            ],
+        },
+        // 番外篇 · 一夜鱼龙舞（独立体系，锁死触发词「鱼龙舞」，可反复触发；8 张连续 CG）
+        {
+            name: "extra-yulongwu",
+            assets: [
+                {
+                    alias: "cg-ylyyw-1",
+                    src: "/场景/一夜鱼龙舞1.jpg",
+                },
+                {
+                    alias: "cg-ylyyw-2",
+                    src: "/场景/一夜鱼龙舞2.jpg",
+                },
+                {
+                    alias: "cg-ylyyw-3",
+                    src: "/场景/一夜鱼龙舞3.jpg",
+                },
+                {
+                    alias: "cg-ylyyw-4",
+                    src: "/场景/一夜鱼龙舞4.jpg",
+                },
+                {
+                    alias: "cg-ylyyw-5",
+                    src: "/场景/一夜鱼龙舞5.jpg",
+                },
+                {
+                    alias: "cg-ylyyw-6",
+                    src: "/场景/一夜鱼龙舞6.jpg",
+                },
+                {
+                    alias: "cg-ylyyw-7",
+                    src: "/场景/一夜鱼龙舞7.jpg",
+                },
+                {
+                    alias: "cg-ylyyw-8",
+                    src: "/场景/一夜鱼龙舞8.jpg",
+                },
+            ],
+        },
+        // 剧情模式（新手引导短演出，单张背景；入口：聊天页顶部 / 开场设定弹框）
+        {
+            name: "story-mode",
+            assets: [
+                {
+                    alias: "bg-story-mode",
+                    src: "/场景/剧情模式_湖上亭台.jpg",
+                },
+            ],
+        },
+    ],
+};

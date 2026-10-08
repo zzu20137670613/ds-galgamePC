@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "ms-vscode.vscode-typescript-next",
+    "anseki.vscode-color",
+    "pflannery.vscode-versionlens",
+    "biomejs.biome"
+  ]
+}
