@@ -4,18 +4,20 @@
 
 这个项目原本是"深海回响"——一个以 DeepSeek 鲸鱼娘为主角的 Galgame。现在你们拿到了全量代码，可以把主角换成你们喜欢的任何 AI 角色。
 
+> 仓库里附了一个换肤 Skill：`.trae/skills/gal-brand-replace/SKILL.md`。如果你的 AI 搭档支持读取 Skills，可以直接让它照 Skill 干活；不支持也没关系，手动照着下面几步来即可。
+
 ## 你需要改的三个地方
 
 ### 1. 立绘（角色大图）
 
 - 图片放在 `public/立绘/`
-- 索引在 `src/lib/materials/materials-index.ts`，找 `kind: "character"` 的条目
+- 索引在 `src/lib/materials/material-index.ts`，找 `kind: "character"` 的条目
 - 把 `src` 改成新图片路径，`triggers` 改成新角色会触发的关键词
 
 ### 2. 背景
 
 - 图片在 `public/背景/` 和 `public/场景/`
-- 索引同样是 `materials-index.ts`，找 `kind: "background"`
+- 索引同样是 `material-index.ts`，找 `kind: "background"`
 
 ### 3. 贴纸（Q 版表情小图）
 
@@ -47,8 +49,8 @@
 
 删掉的位置：
 - `src/lib/archive/finale.ts` — 终局判定入口
-- `src/content/labels/hidden-*` — 所有隐藏剧情 label 文件
-- `materials-index.ts` 里 `tags` 包含 `"终局"` 的两条素材
+- `src/content/labels/hidden-*.label.ts` — 九段隐藏剧情的 label 文件
+- `material-index.ts` 里 `tags` 包含 `"终局"` 的两条素材
 
 换成一条温馨的日常线就够了。或者干脆让用户永远找不到它。
 
