@@ -6,6 +6,21 @@ const LS_API_KEY = "gal_api_key";
 const LS_MODEL_NAME = "gal_model_name";
 
 /**
+ * 默认模型：deepseek-flash（即 V4.1 Flash，自带识图）。
+ * ⚠️ API 只认 model id：实测后台只接受 deepseek-flash / deepseek-v4-pro，
+ * 传展示名 "DeepSeek-V4.1-Flash" 会被拒：
+ * "The supported API model names are deepseek-flash, deepseek-v4-pro, but you passed ..."
+ */
+export const DEFAULT_MODEL_NAME = "deepseek-flash";
+
+/**
+ * 需要迁移掉的历史值（读到就视为"未自定义"，改用当前默认）：
+ * - "deepseek-chat"：旧版本内置默认（纯文本，不能识图）
+ * - "DeepSeek-V4.1-Flash"：曾被写成默认的展示名，API 不认
+ */
+const LEGACY_MODEL_NAMES = new Set(["deepseek-chat", "DeepSeek-V4.1-Flash"]);
+
+/**
  * 开局设定信息：玩家名字、鲸鱼娘名字、API、模型。
  * 持久化在 localStorage，下次打开游戏自动带出。
  */
@@ -14,7 +29,7 @@ export type SetupState = {
     whaleName: string;
     apiKey: string;
     /**
-     * 模型名：用户自定，DeepSeek API 全量透传（如 deepseek-chat / deepseek-reasoner / 未来新模型）
+     * 模型名：用户自定，DeepSeek API 全量透传（默认 deepseek-flash，自带识图）
      */
     modelName: string;
     /**
@@ -30,13 +45,18 @@ export type SetupState = {
 function readStored(): Pick<SetupState, "playerName" | "whaleName" | "apiKey" | "modelName"> {
     // SSR（Vite 插件评估 content 模块时）没有 localStorage，返回空值回退
     if (typeof localStorage === "undefined") {
-        return { playerName: "", whaleName: "鲸鲸", apiKey: "", modelName: "deepseek-chat" };
+        return { playerName: "", whaleName: "鲸鲸", apiKey: "", modelName: DEFAULT_MODEL_NAME };
     }
+    const storedModel = localStorage.getItem(LS_MODEL_NAME) ?? "";
     return {
         playerName: localStorage.getItem(LS_PLAYER_NAME) ?? "",
         whaleName: localStorage.getItem(LS_WHALE_NAME) ?? "鲸鲸",
         apiKey: localStorage.getItem(LS_API_KEY) ?? "",
-        modelName: localStorage.getItem(LS_MODEL_NAME) ?? "deepseek-chat",
+        // 空值或历史遗留值都视为"未自定义"，跟随新默认模型
+        modelName:
+            storedModel && !LEGACY_MODEL_NAMES.has(storedModel)
+                ? storedModel
+                : DEFAULT_MODEL_NAME,
     };
 }
 
@@ -95,7 +115,7 @@ export namespace SetupStore {
             playerName: values.playerName.trim() || "旅人",
             whaleName: values.whaleName.trim() || "鲸鲸",
             apiKey: values.apiKey.trim(),
-            modelName: values.modelName.trim() || "deepseek-chat",
+            modelName: values.modelName.trim() || DEFAULT_MODEL_NAME,
             onboardingDone: true,
             formMode: "idle" as const,
         };

@@ -20,13 +20,25 @@ export type ChatApiOptions = {
     apiKey?: string;
     /** 挑选保留的长期记忆：注入 system prompt，防止早年记忆被上下文长度冲掉 */
     memories?: SavedMemory[];
+    /**
+     * 本轮随消息一起发给模型的图片（data URL 数组）。
+     * 图片**不写入对话存档**（存档里只留 "[图片]" 占位），仅随本次请求发送。
+     */
+    images?: string[];
 };
 
 type ChatMessageRole = "user" | "assistant" | "system";
 
+/** 多模态内容分片（OpenAI 兼容格式，DeepSeek 同样支持） */
+type ContentPart =
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string } };
+
+type WireMessage = { role: ChatMessageRole; content: string | ContentPart[] };
+
 type ChatCompletionRequest = {
     model: string;
-    messages: { role: ChatMessageRole; content: string }[];
+    messages: WireMessage[];
     max_tokens?: number;
     temperature?: number;
     stream?: boolean;
@@ -88,14 +100,46 @@ type SendRequestOptions = {
     maxTokens?: number;
     temperature?: number;
     signal?: AbortSignal;
+    /** 本轮附带的图片（data URL），会挂到最后一条 user 消息上 */
+    images?: string[];
 };
+
+/** 存档里标记"这里发过图"的占位文本 */
+export const IMAGE_PLACEHOLDER = "[图片]";
+
+/**
+ * 把图片挂到最后一条 user 消息上，转成多模态内容数组。
+ * 顺带把文本里由存档带出的 "[图片]" 占位符去掉——模型直接看图，不需要这个标记。
+ */
+function attachImages(messages: WireMessage[], images?: string[]): WireMessage[] {
+    if (!images || images.length === 0) return messages;
+
+    for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role !== "user") continue;
+
+        const current = messages[i].content;
+        const raw = typeof current === "string" ? current : "";
+        const text = raw.replace(/\n?\[图片\]\s*$/, "").trim();
+
+        const parts: ContentPart[] = [];
+        if (text) parts.push({ type: "text", text });
+        for (const url of images) {
+            parts.push({ type: "image_url", image_url: { url } });
+        }
+
+        const next = [...messages];
+        next[i] = { role: "user", content: parts };
+        return next;
+    }
+    return messages;
+}
 
 /**
  * 底层 API 请求：发消息序列 + 收文本回复。
  * 不绑系统提示词，供日常聊天、终局裁判等不同场景复用。
  */
 export async function sendCompletionRequest(
-    messages: { role: ChatMessageRole; content: string }[],
+    messages: WireMessage[],
     apiKey: string,
     options: SendRequestOptions = {},
 ): Promise<ChatCompletionResult> {
@@ -103,7 +147,7 @@ export async function sendCompletionRequest(
 
     const payload = {
         model: options.model ?? modelName,
-        messages,
+        messages: attachImages(messages, options.images),
         max_tokens: options.maxTokens ?? 1024,
         temperature: options.temperature ?? 0.8,
         stream: false,
@@ -166,7 +210,7 @@ export async function chatCompletion(
         throw new Error("未配置 API Key，请先在开场设定中填写");
     }
 
-    const messages: { role: ChatMessageRole; content: string }[] = [
+    const messages: WireMessage[] = [
         {
             role: "system",
             content:
@@ -184,5 +228,6 @@ export async function chatCompletion(
         maxTokens: options.maxTokens,
         temperature: options.temperature,
         signal: options.signal,
+        images: options.images,
     });
 }

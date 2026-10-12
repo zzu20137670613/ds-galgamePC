@@ -1,5 +1,5 @@
 import { contextArchive, memoryArchive, type ChatMessage, type SavedMemory } from "@/lib/archive/context-archive";
-import { chatCompletion } from "@/lib/api/chat-api";
+import { chatCompletion, IMAGE_PLACEHOLDER } from "@/lib/api/chat-api";
 import { matchMaterials, type MaterialEntry } from "@/lib/materials/material-index";
 import { clearCurrentBackground } from "@/lib/utils/assets-utility";
 import {
@@ -31,12 +31,43 @@ import {
 import { quickSaveGameToIndexDB, getSaveSlotLabel } from "@/lib/utils/save-utility";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Home, Save, ShieldCheck, LibraryBig, DoorOpen, Clapperboard, Archive } from "lucide-react";
+import { Send, Home, Save, ShieldCheck, LibraryBig, DoorOpen, Clapperboard, Archive, ImagePlus, X } from "lucide-react";
 import { estimateMessagesTokens, MEMORY_TRIGGER_LIMIT, SEAL_REMINDER_LIMIT } from "@/lib/utils/token-estimate";
 import { requestFinaleJudgment, FINALE_ENDING } from "@/lib/archive/finale";
 import { filterDailyMessages, runCompression, saveSealToDB, saveRawSealToDB } from "@/lib/archive/compress";
 import { reviewMemoryViaAPI, reviewSealDocumentViaAPI } from "@/lib/ai-review";
 import type { LabelIdType } from "@drincs/pixi-vn/narration";
+
+/** 单条消息最多带几张图 */
+const MAX_IMAGES = 4;
+/** 压缩后最长边（px）：原图动辄数 MB，过大易导致请求慢/超时 */
+const MAX_IMAGE_SIDE = 1280;
+
+/** 读取图片并等比压缩为 JPEG data URL（PC 端同样适用） */
+async function fileToCompressedDataUrl(file: File): Promise<string> {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("读取图片失败"));
+        reader.readAsDataURL(file);
+    });
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("解析图片失败"));
+        el.src = dataUrl;
+    });
+
+    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.width, img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.width * scale));
+    canvas.height = Math.max(1, Math.round(img.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.8);
+}
 
 /**
  * 未至之境聊天界面：
@@ -52,6 +83,9 @@ export function ChatScreen() {
     const queryClient = useQueryClient();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
+    const [images, setImages] = useState<string[]>([]);
+    const [reading, setReading] = useState(false);
+    const fileRef = useRef<HTMLInputElement>(null);
     const [sending, setSending] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -266,9 +300,18 @@ export function ChatScreen() {
 
     const handleSend = async () => {
         const content = input.trim();
-        if (!content || sending) return;
+        const attachedImages = images;
+        const hasImages = attachedImages.length > 0;
+        if ((!content && !hasImages) || sending) return;
         setInput("");
-        const userMsg: ChatMessage = { role: "user", content, ts: Date.now() };
+        setImages([]);
+        // 图片不入存档（体积大），只在存档里留 [图片] 占位，标明"对话到这里有图片"
+        const archived = hasImages
+            ? content
+                ? `${content}\n${IMAGE_PLACEHOLDER}`
+                : IMAGE_PLACEHOLDER
+            : content;
+        const userMsg: ChatMessage = { role: "user", content: archived, ts: Date.now() };
         // 先临时上屏，再存档；玩家发言命中素材立即生效
         const optimistic = [...messages, userMsg];
         setMessages(optimistic);
@@ -337,7 +380,7 @@ export function ChatScreen() {
                 };
                 setMessages((prev) => [...prev, sealNotice]);
             }
-            const chatResult = await chatCompletion(all, { memories });
+            const chatResult = await chatCompletion(all, { memories, images: attachedImages });
             const reply: ChatMessage = {
                 role: "assistant",
                 content: chatResult.content,
@@ -367,6 +410,25 @@ export function ChatScreen() {
             setMessages((prev) => prev.filter((m) => m !== userMsg));
         } finally {
             setSending(false);
+        }
+    };
+
+    /** 选图：交给系统文件选择器，读入后压缩成 data URL 待发送 */
+    const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files ?? []);
+        // 清空 value，否则连续选同一张图不会再触发 change
+        e.target.value = "";
+        if (files.length === 0) return;
+
+        setReading(true);
+        try {
+            const room = Math.max(0, MAX_IMAGES - images.length);
+            const picked = await Promise.all(files.slice(0, room).map(fileToCompressedDataUrl));
+            setImages((prev) => [...prev, ...picked].slice(0, MAX_IMAGES));
+        } catch {
+            // 单张读取失败就跳过，不打断输入
+        } finally {
+            setReading(false);
         }
     };
 
@@ -686,10 +748,52 @@ export function ChatScreen() {
 
             {/* 输入栏 */}
             <footer className="relative z-20 border-t bg-background/40 backdrop-blur-sm">
+                {/* 已选图片预览（发送前可逐张移除） */}
+                {images.length > 0 && (
+                    <div className="mx-auto flex max-w-3xl items-center gap-2 overflow-x-auto px-4 pt-3">
+                        {images.map((src, i) => (
+                            <div key={i} className="relative shrink-0">
+                                <img
+                                    src={src}
+                                    alt="待发送图片"
+                                    className="h-16 w-16 rounded-md border object-cover"
+                                />
+                                <button
+                                    type="button"
+                                    aria-label="移除这张图片"
+                                    className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-black/70 text-white"
+                                    onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
+                                >
+                                    <X className="size-3" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
                 <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3">
+                    {/* 选图：交给系统文件选择器 */}
+                    <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handlePick}
+                    />
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={sending || reading || images.length >= MAX_IMAGES}
+                        aria-label="添加图片"
+                        title={images.length >= MAX_IMAGES ? `最多 ${MAX_IMAGES} 张` : "添加图片"}
+                        onClick={() => fileRef.current?.click()}
+                    >
+                        <ImagePlus className="size-4" />
+                    </Button>
                     <Input
                         value={input}
-                        placeholder={t("chat_input_placeholder", {
+                        placeholder={reading ? "正在处理图片……" : t("chat_input_placeholder", {
                             defaultValue: `想和 ${whaleName} 说点什么……`,
                         })}
                         disabled={sending}
@@ -701,7 +805,7 @@ export function ChatScreen() {
                         }}
                         onChange={(e) => setInput(e.target.value)}
                     />
-                    <Button onClick={handleSend} disabled={sending || !input.trim()}>
+                    <Button onClick={handleSend} disabled={sending || (!input.trim() && images.length === 0)}>
                         <Send className="size-4" />
                         {t("chat_send", { defaultValue: "发送" })}
                     </Button>

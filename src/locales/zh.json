@@ -173,7 +173,7 @@
     "setup_roll_name": "随机一个名字",
     "setup_whale_name": "怎么称呼我？（不填的话我叫鲸鲸）",
     "setup_api_key": "API Key（必填，后续用于世界实时演化）",
-    "setup_model_name": "模型名（不填默认 deepseek-chat，支持所有 DS 模型）",
+    "setup_model_name": "模型名（默认 deepseek-flash，自带识图；也可填 deepseek-v4-pro）",
     "setup_confirm": "记下了",
     "enter_story_mode": "进入剧情模式"
   }
