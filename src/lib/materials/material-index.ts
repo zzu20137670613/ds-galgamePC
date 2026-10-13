@@ -1187,7 +1187,7 @@ export const MATERIAL_INDEX: MaterialEntry[] = [
     {
         kind: "character",
         src: "/立绘/打黑工_鲸鱼娘_中转站系列立绘_3.png",
-        triggers: ["群星", "黑暗森林", "战锤"],
+        triggers: ["群星", "黑暗森林", "战锤", "2077"],
         tags: ["立绘", "群星系列"],
     },
     // ── 2026-10-08 终局结局素材（唯一由开发者预留的完美结局）──
