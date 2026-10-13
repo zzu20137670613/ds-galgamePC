@@ -137,6 +137,14 @@ function attachImages(messages: WireMessage[], images?: string[]): WireMessage[]
 /**
  * 底层 API 请求：发消息序列 + 收文本回复。
  * 不绑系统提示词，供日常聊天、终局裁判等不同场景复用。
+ *
+ * 【联网搜索（web search）现状 · 未实现，预留接入点】
+ * - DeepSeek 官方 API 不带内置搜索：Responses API 文档中 web_search 工具会被静默忽略；
+ * - C 端 App / Agent 工作台的联网，本质是服务端自建/采购搜索集群、成本由平台承担；
+ * - 自家实现只能接第三方搜索源（博查 / Tavily / Brave），玩家得在 DeepSeek key 之外
+ *   另备一个搜索 key，违背「玩家只填自己的 DeepSeek key」的设定，故不做。
+ * 预留近路：若未来 DeepSeek 官方上线内置 web_search（服务端代搜、扣玩家自己的 key），
+ * 在此 payload 增加 web_search 工具并处理 tool_calls 回流即可启用，无需第三方 key。
  */
 export async function sendCompletionRequest(
     messages: WireMessage[],

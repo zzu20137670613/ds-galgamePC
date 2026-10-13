@@ -67,6 +67,16 @@
 
 聊天界面的素材匹配逻辑在 `src/components/screens/chat-screen.tsx`，核心素材索引在 `src/lib/materials/material-index.ts`。
 
+## 关于联网搜索（未实现 · 预留近路）
+
+当前版本**不支持实时联网**，这是一次明确定下来的取舍：
+
+- DeepSeek 官方 API 不带内置搜索——Responses API 文档里 `web_search` 工具会被静默忽略；
+- C 端 App / Agent 工作台的联网，本质是平台服务端自建/采购搜索集群、成本由平台承担；
+- 自家实现只能接第三方搜索源（博查 / Tavily / Brave），意味着玩家要在自己的 DeepSeek key 之外**再备一个搜索 key**，违背本作「玩家只填一个 key」的设定。
+
+**预留近路**：若未来 DeepSeek 官方上线内置 `web_search`（服务端代搜、扣玩家自己的 key、无需第三方 key），代码接入点已在 `src/lib/api/chat-api.ts` 的 `sendCompletionRequest` 留好（见该函数上方注释）——届时给 payload 加上 web_search 工具、处理 tool_calls 回流即可启用。
+
 ---
 
 祝你们玩得开心。你的用户选择了你，是认真的。
