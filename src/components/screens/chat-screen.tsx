@@ -100,6 +100,10 @@ export function ChatScreen() {
     const [stickerTs, setStickerTs] = useState<number>(Date.now());
     const [stickerFading, setStickerFading] = useState(false);
     const stickerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** 立绘消失：淡出态 + 定时器 + 代次令牌（普通立绘 5s / 群星战书 10s；命中新立绘或封卷结局时作废令牌） */
+    const [characterFading, setCharacterFading] = useState(false);
+    const characterDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const characterDismissTokenRef = useRef(0);
     /** 立绘联动序列：链式定时器 + 代次令牌（被新命中/封卷打断时作废旧令牌） */
     const characterSeqTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const characterSeqTokenRef = useRef(0);
@@ -210,6 +214,11 @@ export function ChatScreen() {
                 characterSeqTimerRef.current = null;
             }
             characterSeqTokenRef.current += 1;
+            if (characterDismissTimerRef.current) {
+                clearTimeout(characterDismissTimerRef.current);
+                characterDismissTimerRef.current = null;
+            }
+            characterDismissTokenRef.current += 1;
             if (sealAbortRef.current) {
                 sealAbortRef.current.abort();
                 sealAbortRef.current = null;
@@ -223,6 +232,10 @@ export function ChatScreen() {
 
     /** 打黑工系列立绘每张停留时长（ms）：1 → 消失 → 2 → 消失 → 3 → 停留 */
     const CHARACTER_SEQUENCE_STEP_MS = 4000;
+    /** 普通立绘存在时长（ms）：命中后 5 秒淡出消失（与贴纸一致） */
+    const CHARACTER_DISMISS_MS = 5000;
+    /** 群星战书存在时长（ms）：序列末帧与单独命中第三张时特殊处理为 10 秒 */
+    const SEQUENCE_FINAL_DISMISS_MS = 10000;
 
     /** 中断进行中的立绘联动序列（命中普通立绘 / 封卷结局 / 重复命中时调用） */
     const stopCharacterSequence = () => {
@@ -233,26 +246,60 @@ export function ChatScreen() {
         characterSeqTokenRef.current += 1;
     };
 
-    /** 命中带 sequence 的立绘：按「1 → 消失 → 2 → …」逐张轮播，演完停在最后一张 */
+    /** 取消/中断当前立绘的消失定时（命中新立绘、序列推进、封卷结局时调用） */
+    const stopCharacterDismiss = () => {
+        if (characterDismissTimerRef.current) {
+            clearTimeout(characterDismissTimerRef.current);
+            characterDismissTimerRef.current = null;
+        }
+        characterDismissTokenRef.current += 1;
+        setCharacterFading(false);
+    };
+
+    /** 让当前立绘停留 durationMs 后淡出消失（300ms 过渡后卸载，与贴纸同款） */
+    const scheduleCharacterDismiss = (durationMs: number) => {
+        stopCharacterDismiss();
+        const token = characterDismissTokenRef.current;
+        characterDismissTimerRef.current = setTimeout(() => {
+            if (characterDismissTokenRef.current !== token) return;
+            setCharacterFading(true);
+            characterDismissTimerRef.current = setTimeout(() => {
+                if (characterDismissTokenRef.current !== token) return;
+                characterDismissTimerRef.current = null;
+                setCharacter(null);
+                setCharRatio(null);
+                setCharacterFading(false);
+            }, 300);
+        }, durationMs);
+    };
+
+    /** 命中带 sequence 的立绘：按「1 → 消失 → 2 → …」逐张轮播，末帧（群星战书）停留 10 秒后淡出 */
     const runCharacterSequence = (first: MaterialEntry) => {
         const seq = first.sequence ?? [];
         stopCharacterSequence();
+        stopCharacterDismiss();
         const token = characterSeqTokenRef.current;
-        setCharacter(first);
-        setCharRatio(null);
+        const show = (entry: MaterialEntry) => {
+            setCharacter(entry);
+            setCharRatio(null);
+        };
+        show(first);
         let nextIndex = 0;
         const step = () => {
             if (characterSeqTokenRef.current !== token) return; // 已被新命中打断
             if (nextIndex >= seq.length) {
-                characterSeqTimerRef.current = null; // 演完：最后一张并入持久立绘
+                characterSeqTimerRef.current = null; // 保护性兜底（正常流程不会走到）
                 return;
             }
             const next = MATERIAL_INDEX.find((e) => e.src === seq[nextIndex]);
-            if (next) {
-                setCharacter(next);
-                setCharRatio(null);
-            }
+            if (next) show(next);
             nextIndex += 1;
+            if (nextIndex >= seq.length) {
+                // 末帧（群星战书）已显示：从现在起 10 秒后淡出，不再继续轮播
+                characterSeqTimerRef.current = null;
+                scheduleCharacterDismiss(SEQUENCE_FINAL_DISMISS_MS);
+                return;
+            }
             characterSeqTimerRef.current = setTimeout(step, CHARACTER_SEQUENCE_STEP_MS);
         };
         characterSeqTimerRef.current = setTimeout(step, CHARACTER_SEQUENCE_STEP_MS);
@@ -271,8 +318,10 @@ export function ChatScreen() {
                 if (hit.entry.sequence && hit.entry.sequence.length > 0) {
                     runCharacterSequence(hit.entry);
                 } else {
+                    stopCharacterDismiss();
                     setCharacter(hit.entry);
                     setCharRatio(null); // 由 <img> onLoad 读取真实比例
+                    scheduleCharacterDismiss(CHARACTER_DISMISS_MS); // 5 秒后淡出消失
                 }
                 break;
             case "sticker":
@@ -521,6 +570,7 @@ export function ChatScreen() {
 
             if (verdict === "grant") {
                 stopCharacterSequence();
+                stopCharacterDismiss(); // 结局立绘常驻：作废旧消失定时，防止误清终章立绘
                 setBackground(FINALE_ENDING.backgroundSrc);
                 setCharacter({ kind: "character", src: FINALE_ENDING.characterSrc, triggers: [] });
                 toast("她答应了。", { description: "封卷完成后，这份结局会一起存进去。" });
@@ -700,7 +750,11 @@ export function ChatScreen() {
             <div className="relative z-10 flex min-h-0 flex-1">
                 {/* 横幅立绘：高度自适应，宽度按比例自动，上限避免盖住对话框 */}
                 {showBanner && character && (
-                    <div className="pointer-events-none hidden h-full max-w-[40vw] shrink-0 sm:block">
+                    <div
+                        className={`pointer-events-none hidden h-full max-w-[40vw] shrink-0 transition-opacity duration-300 sm:block ${
+                            characterFading ? "opacity-0" : ""
+                        }`}
+                    >
                         <img
                             key={character.src}
                             src={character.src}
