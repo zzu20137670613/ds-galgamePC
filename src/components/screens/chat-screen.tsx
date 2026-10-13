@@ -1,6 +1,6 @@
 import { contextArchive, memoryArchive, type ChatMessage, type SavedMemory } from "@/lib/archive/context-archive";
 import { chatCompletion, IMAGE_PLACEHOLDER } from "@/lib/api/chat-api";
-import { matchMaterials, type MaterialEntry } from "@/lib/materials/material-index";
+import { matchMaterials, MATERIAL_INDEX, type MaterialEntry } from "@/lib/materials/material-index";
 import { clearCurrentBackground } from "@/lib/utils/assets-utility";
 import {
     checkHiddenTrigger,
@@ -100,6 +100,9 @@ export function ChatScreen() {
     const [stickerTs, setStickerTs] = useState<number>(Date.now());
     const [stickerFading, setStickerFading] = useState(false);
     const stickerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** 立绘联动序列：链式定时器 + 代次令牌（被新命中/封卷打断时作废旧令牌） */
+    const characterSeqTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const characterSeqTokenRef = useRef(0);
 
     // ── 长期记忆状态：用户挑选保留的记忆 / 是否已弹出 55k 提醒 ──
     const [memories, setMemories] = useState<SavedMemory[]>([]);
@@ -196,12 +199,17 @@ export function ChatScreen() {
     }, []);
 
     useEffect(() => {
-        // 组件卸载时清理贴纸定时器 + 中断进行中的封卷
+        // 组件卸载时清理贴纸定时器 + 立绘序列定时器 + 中断进行中的封卷
         return () => {
             if (stickerTimerRef.current) {
                 clearTimeout(stickerTimerRef.current);
                 stickerTimerRef.current = null;
             }
+            if (characterSeqTimerRef.current) {
+                clearTimeout(characterSeqTimerRef.current);
+                characterSeqTimerRef.current = null;
+            }
+            characterSeqTokenRef.current += 1;
             if (sealAbortRef.current) {
                 sealAbortRef.current.abort();
                 sealAbortRef.current = null;
@@ -213,6 +221,43 @@ export function ChatScreen() {
         listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
     }, [messages, sending]);
 
+    /** 打黑工系列立绘每张停留时长（ms）：1 → 消失 → 2 → 消失 → 3 → 停留 */
+    const CHARACTER_SEQUENCE_STEP_MS = 4000;
+
+    /** 中断进行中的立绘联动序列（命中普通立绘 / 封卷结局 / 重复命中时调用） */
+    const stopCharacterSequence = () => {
+        if (characterSeqTimerRef.current) {
+            clearTimeout(characterSeqTimerRef.current);
+            characterSeqTimerRef.current = null;
+        }
+        characterSeqTokenRef.current += 1;
+    };
+
+    /** 命中带 sequence 的立绘：按「1 → 消失 → 2 → …」逐张轮播，演完停在最后一张 */
+    const runCharacterSequence = (first: MaterialEntry) => {
+        const seq = first.sequence ?? [];
+        stopCharacterSequence();
+        const token = characterSeqTokenRef.current;
+        setCharacter(first);
+        setCharRatio(null);
+        let nextIndex = 0;
+        const step = () => {
+            if (characterSeqTokenRef.current !== token) return; // 已被新命中打断
+            if (nextIndex >= seq.length) {
+                characterSeqTimerRef.current = null; // 演完：最后一张并入持久立绘
+                return;
+            }
+            const next = MATERIAL_INDEX.find((e) => e.src === seq[nextIndex]);
+            if (next) {
+                setCharacter(next);
+                setCharRatio(null);
+            }
+            nextIndex += 1;
+            characterSeqTimerRef.current = setTimeout(step, CHARACTER_SEQUENCE_STEP_MS);
+        };
+        characterSeqTimerRef.current = setTimeout(step, CHARACTER_SEQUENCE_STEP_MS);
+    };
+
     /** 扫描文本，按形态把命中的素材填进对应槽位 */
     const applyMaterials = (text: string) => {
         const hit = matchMaterials(text);
@@ -222,8 +267,13 @@ export function ChatScreen() {
                 setBackground(hit.entry.src);
                 break;
             case "character":
-                setCharacter(hit.entry);
-                setCharRatio(null); // 由 <img> onLoad 读取真实比例
+                stopCharacterSequence();
+                if (hit.entry.sequence && hit.entry.sequence.length > 0) {
+                    runCharacterSequence(hit.entry);
+                } else {
+                    setCharacter(hit.entry);
+                    setCharRatio(null); // 由 <img> onLoad 读取真实比例
+                }
                 break;
             case "sticker":
                 setSticker(hit.entry);
@@ -470,6 +520,7 @@ export function ChatScreen() {
             const verdict = await requestFinaleJudgment(daily);
 
             if (verdict === "grant") {
+                stopCharacterSequence();
                 setBackground(FINALE_ENDING.backgroundSrc);
                 setCharacter({ kind: "character", src: FINALE_ENDING.characterSrc, triggers: [] });
                 toast("她答应了。", { description: "封卷完成后，这份结局会一起存进去。" });

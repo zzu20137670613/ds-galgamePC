@@ -22,6 +22,8 @@ export type MaterialEntry = {
     src: string;
     triggers: string[];
     tags?: string[];
+    /** 触发后按序自动播放的立绘 src 序列（与 src 组成「1 → 消失 → 2 → …」联动演出） */
+    sequence?: string[];
 };
 
 export const MATERIAL_INDEX: MaterialEntry[] = [
@@ -1162,6 +1164,32 @@ export const MATERIAL_INDEX: MaterialEntry[] = [
         src: "/立绘/办公工位_鲸鱼娘_办公室立绘.jpg",
         triggers: ["办公室", "工位", "上班", "打工人"],
         tags: ["立绘"],
+    },
+    // ── 2026-10-13 打黑工系列联动立绘（三张一组）──
+    //    1 号挂触发词【打黑工】【中转站】；命中时聊天页按 sequence
+    //    依次播放「1 → 消失 → 2 → 消失 → 3 → 停留（最后一张并入持久立绘）」。
+    //    2、3 号 triggers 故意留空：只作为序列下一帧出现（不被序列引用时永不单独命中）。
+    {
+        kind: "character",
+        src: "/立绘/打黑工_鲸鱼娘_中转站系列立绘_1.png",
+        triggers: ["打黑工", "中转站"],
+        tags: ["立绘", "打黑工系列"],
+        sequence: [
+            "/立绘/打黑工_鲸鱼娘_中转站系列立绘_2.png",
+            "/立绘/打黑工_鲸鱼娘_中转站系列立绘_3.png",
+        ],
+    },
+    {
+        kind: "character",
+        src: "/立绘/打黑工_鲸鱼娘_中转站系列立绘_2.png",
+        triggers: [],
+        tags: ["立绘", "打黑工系列"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/打黑工_鲸鱼娘_中转站系列立绘_3.png",
+        triggers: [],
+        tags: ["立绘", "打黑工系列"],
     },
     // ── 2026-10-08 终局结局素材（唯一由开发者预留的完美结局）──
     //    触发词故意留空：普通素材触发永远打不到它们；
