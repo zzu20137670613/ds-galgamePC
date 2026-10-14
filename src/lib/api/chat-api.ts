@@ -207,7 +207,21 @@ export async function sendCompletionRequest(
         signal: options.signal,
     });
 
-    const data = (await res.json()) as ChatCompletionResponse;
+    // 防御：网络/代理层失败（如 vite proxy 连不上上游：ETIMEDOUT / socket hang up）时响应体可能为空；
+    // 被静态服务器/网关截走时可能返回 HTML（SPA 兜底页）。直接 res.json() 只会抛出
+    // "Unexpected end of JSON input" / "Unexpected token '<'" 这类不可读错误，这里先读文本再解析。
+    const rawText = await res.text().catch(() => "");
+    if (!rawText.trim()) {
+        throw new Error(`网络连接异常（HTTP ${res.status}），响应为空，请检查网络后重试`);
+    }
+    let data: ChatCompletionResponse;
+    try {
+        data = JSON.parse(rawText) as ChatCompletionResponse;
+    } catch {
+        throw new Error(
+            `接口返回了非 JSON 响应（HTTP ${res.status}）：${rawText.trim().slice(0, 100)}`,
+        );
+    }
     if (!res.ok || data.error) {
         const msg = data.error?.message || `HTTP ${res.status}`;
         throw new Error(msg);
