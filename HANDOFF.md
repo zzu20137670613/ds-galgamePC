@@ -67,6 +67,13 @@
 
 聊天界面的素材匹配逻辑在 `src/components/screens/chat-screen.tsx`，核心素材索引在 `src/lib/materials/material-index.ts`。
 
+## 发布流程与术语约定（用户拍板，2026-10-14）
+
+- **「包体入库」= 传到 GitHub Release**。用户说「apk/exe 入库」「上传」「发布新版本」，指打新包 → 建 release → `gh release create`（或 `gh release upload`）上传包体，下载链接保持 `releases/latest` 不变。
+- **git 仓库永不提交包体**（APK/EXE 均超 GitHub 单文件 100MB 入库上限，只能走 Release 资产通道，上限 2GB）。`git add` 只加代码/素材，避开包体与 `dist/`、`release/`、`release-v2/` 等构建产物（已在 .gitignore）。
+- 当前版本 v1.2.0：PC 产物 `ShenHaiHuiXiangSetup.1.2.0.exe`（约 347MB）、手机 `ShenHaiHuiXiangMobileV1.2.0.apk`（约 153MB）。发布时版本号唯一事实源是 `package.json`（PC）与 `android/app/build.gradle`（手机，versionCode 递增），改动后同步记入 VERSION.md。
+- 本机打包注意：工作区在 Trae 的 `ModularData` 下，`electron-builder` 写大 asar 可能被文件监听锁（EBUSY），可把构建输出临时指到工作区外如 `C:\Users\15639732925\gal-build`；手机端 Capacitor 8 需 JDK 21，本机目前只有 JDK 17，可用临时 init script 降编译目标（详见 VERSION.md / 打包记录），长期建议装 JDK 21。
+
 ## 关于联网搜索（未实现 · 预留近路）
 
 当前版本**不支持实时联网**，这是一次明确定下来的取舍：
