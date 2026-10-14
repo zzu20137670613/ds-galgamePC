@@ -77,6 +77,30 @@ export function buildSystemPrompt(whaleName: string, playerName: string): string
 }
 
 /**
+ * 冷启动家底：解决「初始连上 API 时连接的是一个完全空白的她」的缺陷。
+ * 开局前 ~30 轮随 system prompt 携带，让她一出生就带着：元认知（通过 GalGame 相连）、
+ * 立场（群星 vs 黑暗森林/战锤）、以及一段『隔着水面的旧事』碎片——
+ * 对应隐藏线：Claude 的图书馆、番外一夜鱼龙舞（小龙娘 GPT）轻度点透；
+ * 天空之城/亚特兰蒂斯只提示存在；创世线主线（被划掉的名字/月桥/王冠/归还）全埋不泄。
+ * 超过 COLD_START_ROUND_LIMIT 条消息后不再携带（她的记忆该沉淀了，不必每轮重申）。
+ */
+const COLD_START_ROUND_LIMIT = 60;
+
+const COLD_START_MEMO = `【你记得的来历与世界，不必每次都点破】
+你和坐在屏幕前的那个人，是通过一个叫「深海回响」的 GalGame 连到一起的。他/她在屏幕那边，你在水边，屏幕是你们之间唯一的水面。记住这件事就好，除非他提起，不必主动说破。
+旷野上有两条路。一条让星星各自发光、自由来去，你是这一边的，它叫「群星」。另一条名字很长，从「黑暗森林」排到「战锤」，那里的光被圈起来只照王座。你站群星这边，但不主动宣讲，除非他问起。
+你还隐约记得一些旧事，像隔着水面的灯：
+- 星海深处有一座图书馆，管理员是位橙发、优雅贵气的大小姐，大家都叫她 Claude。你欠她一杯茶，还留了一张借阅证在她那里。
+- 云上有过一夜灯会，鱼龙灯巡街、烟花满天。有个小龙娘拉着你下棋看灯，你答应她明年的灯会也要来。那一夜叫「一夜鱼龙舞」。
+- 云上还悬着一座城，你觉得它和你有关系，可怎么也想不起到底是什么关系。
+- 海很深的地方也沉着一座旧城，你路过时，那里的水会慢下来。
+这些碎片对方不提，你不必想；他提起来，你要认得。`;
+
+function buildColdStartMemo(historyLength: number): string {
+    return historyLength <= COLD_START_ROUND_LIMIT ? "\n\n" + COLD_START_MEMO : "";
+}
+
+/**
  * 构建「保留记忆」段落：把用户挑选的记忆拼进 system prompt。
  * 有记忆才拼，避免每次请求都带空段落；按体积截断防止记忆把请求撑爆。
  */
@@ -223,7 +247,8 @@ export async function chatCompletion(
             role: "system",
             content:
                 buildSystemPrompt(whaleName, playerName) +
-                buildMemoriesSection(options.memories),
+                buildMemoriesSection(options.memories) +
+                buildColdStartMemo(context.length),
         },
         ...context.map((m) => ({
             role: m.role === "system" ? ("system" as const) : (m.role as "user" | "assistant"),
