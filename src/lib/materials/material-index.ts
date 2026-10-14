@@ -1220,7 +1220,7 @@ export const MATERIAL_INDEX: MaterialEntry[] = [
     },
 ];
 
-/** 匹配引擎：扫描文本，命中触发词；同一形态内取命中位置最靠前的素材 */
+/** 匹配引擎：扫描文本命中触发词；全库（不分背景/立绘/贴纸）取命中位置最靠前的一条，只返回一个 */
 export function matchMaterials(
     text: string,
     entries: MaterialEntry[] = MATERIAL_INDEX,
