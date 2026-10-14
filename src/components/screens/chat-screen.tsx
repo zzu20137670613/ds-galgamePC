@@ -630,14 +630,26 @@ export function ChatScreen() {
 
             {/* 立绘槽位：竖版/正方形 → 主内容区左对齐大立绘；横版 → 左下角小立绘 */}
 
-            {/* 左下角小立绘：仅横版/无立绘时保留原布局 */}
+            {/* 左下角小立绘（横版图 / charRatio 尚未算好时的兜底展示）：
+                绑定 characterFading 保证 5 秒后淡出消失；补 onLoad 计算比例，
+                否则 charRatio 恒为 null，showBanner 永远 false，竖版立绘会被锁死在这个小图分支 */}
             {character && !showBanner && (
-                <div className="pointer-events-none absolute bottom-40 left-4 z-10 hidden w-52 sm:block">
+                <div
+                    className={`pointer-events-none absolute bottom-40 left-4 z-10 hidden w-52 transition-opacity duration-300 sm:block ${
+                        characterFading ? "opacity-0" : ""
+                    }`}
+                >
                     <img
                         key={character.src}
                         src={character.src}
                         alt="立绘"
                         className="w-full drop-shadow-xl animate-in fade-in zoom-in-95 duration-300"
+                        onLoad={(e) => {
+                            const el = e.currentTarget;
+                            if (el.naturalWidth > 0) {
+                                setCharRatio(el.naturalWidth / el.naturalHeight);
+                            }
+                        }}
                     />
                 </div>
             )}
@@ -771,13 +783,16 @@ export function ChatScreen() {
                     </div>
                 )}
 
-                {/* 消息流 */}
+                {/* 消息流：外层滚动容器贴满右侧（滚动条右贴边），内容在里层限宽居中 */}
                 <div
                     ref={listRef}
-                    className={`flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 ${
-                        showBanner ? "w-auto" : "mx-auto w-full max-w-3xl"
-                    }`}
+                    className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto py-4"
                 >
+                    <div
+                        className={`mx-auto flex w-full min-w-0 flex-col gap-3 px-4 ${
+                            showBanner ? "" : "max-w-3xl"
+                        }`}
+                    >
                 {!loaded && (
                     <div className="mx-auto text-sm text-muted-foreground">
                         {t("chat_loading", { defaultValue: "正在回到上一次的湖边……" })}
@@ -848,7 +863,8 @@ export function ChatScreen() {
                         />
                     </div>
                 )}
-            </div>
+                    </div>
+                </div>
             </div>
 
             {/* 输入栏 */}
