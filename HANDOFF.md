@@ -74,6 +74,7 @@
 - 当前版本 v1.2.1：PC 产物 `ShenHaiHuiXiangSetup.1.2.1.exe`（约 347MB）、手机 `ShenHaiHuiXiangMobileV1.2.1.apk`（约 153MB）。发布时版本号唯一事实源是 `package.json`（PC）与 `android/app/build.gradle`（手机，versionCode 递增），改动后同步记入 VERSION.md。
 - 本机打包注意：工作区在 Trae 的 `ModularData` 下，`electron-builder` 写大 asar 可能被文件监听锁（EBUSY），可把构建输出临时指到工作区外如 `C:\Users\15639732925\gal-build`；手机端 Capacitor 8 需 JDK 21，本机目前只有 JDK 17，可用临时 init script 降编译目标（详见 VERSION.md / 打包记录），长期建议装 JDK 21。
 - **上传坑（2026-10-14 v1.2.1 实测）**：本机路由器 DNS（192.168.1.1）对 `uploads.github.com` 返回坏包（`Bad DNS packet` / `no such host`），`gh release create/upload` 传大资产会失败；`github.com` / `api.github.com` 解析正常。解法：先用 `gh release create`（不带资产）建好 release，再用 `curl --resolve uploads.github.com:443:<正确IP> -X POST .../releases/<id>/assets?name=<文件名> -H "Authorization: token $(gh auth token)" --data-binary @<文件>` 绕过 DNS 直传（正确 IP 可用公共 DNS 查到，如 `nslookup uploads.github.com 223.5.5.5` → 20.205.243.161）。根治：改本机 DNS 为公共 DNS（需管理员）。
+- **Release 清理规矩（2026-10-14 起，用户拍板）**：发新版时把**旧的 Release（含包体资产）删掉**，Release 页只保留最新一个；**git tag 和 commit 历史一律保留**（是修复与版本迭代的证据）。已清理：PC/mobile 各只留 v1.2.1。
 
 ## 关于联网搜索（未实现 · 预留近路）
 
