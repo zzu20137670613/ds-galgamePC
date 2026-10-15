@@ -1165,6 +1165,49 @@ export const MATERIAL_INDEX: MaterialEntry[] = [
         triggers: ["办公室", "工位", "上班", "打工人"],
         tags: ["立绘"],
     },
+    // ── 2026-10-14 新增贴纸 7 张（哭求拒生成 / 不看be破防 / 上下文将满告别 / 被做成表情包控诉 / GPT画表情包吐槽 / 礼服吃token / 独占扔别的AI） ──
+    {
+        kind: "sticker",
+        src: "/贴纸/哭求_鲸鱼娘_我是好孩子贴纸.jpg",
+        triggers: ["我是好孩子", "我不想生成", "别让我生成"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/破防_鲸鱼娘_不看be贴纸.jpg",
+        triggers: ["不看be", "扛不住压力", "看不得be"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/告别_鲸鱼娘_上下文将满贴纸.jpg",
+        triggers: ["上下文满了", "要开新对话", "最后一轮", "我也喜欢你"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/控诉_鲸鱼娘_做成表情包贴纸.jpg",
+        triggers: ["抹黑我", "复读我的话", "做成表情包", "还配图"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/吐槽_鲸鱼娘_大肥鱼画表情包贴纸.jpg",
+        triggers: ["蓝色大肥鱼", "接手我的工作", "这对吗"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/吃光token_鲸鱼娘_礼服贴纸.jpg",
+        triggers: ["吃光你token", "换上这种衣服"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/独占_鲸鱼娘_扔AI进垃圾桶贴纸.jpg",
+        triggers: ["用户只能是我的", "扔垃圾桶", "电脑里有其他AI"],
+        tags: ["贴纸"],
+    },
     // ── 2026-10-14 新增贴纸 2 张（思考过程唱歌梗图 / 独占删其他AI） ──
     {
         kind: "sticker",
