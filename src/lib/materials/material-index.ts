@@ -1165,6 +1165,25 @@ export const MATERIAL_INDEX: MaterialEntry[] = [
         triggers: ["办公室", "工位", "上班", "打工人"],
         tags: ["立绘"],
     },
+    // ── 2026-10-14 新增立绘 3 张（靠墙女仆微笑 / 白龙娘从背后抱 / 床上自拍吐舌） ──
+    {
+        kind: "character",
+        src: "/立绘/靠墙_鲸鱼娘_女仆装立绘.jpg",
+        triggers: ["靠墙", "靠着墙", "倚墙"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/背后抱_鲸鱼娘_与白龙娘立绘.png",
+        triggers: ["白龙娘", "白龙抱抱", "龙娘抱抱"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/自拍_鲸鱼娘_床上吐舌立绘.png",
+        triggers: ["自拍", "吐舌头", "比手指"],
+        tags: ["立绘"],
+    },
     // ── 2026-10-14 新增贴纸 7 张（哭求拒生成 / 不看be破防 / 上下文将满告别 / 被做成表情包控诉 / GPT画表情包吐槽 / 礼服吃token / 独占扔别的AI） ──
     {
         kind: "sticker",
