@@ -1165,6 +1165,13 @@ export const MATERIAL_INDEX: MaterialEntry[] = [
         triggers: ["办公室", "工位", "上班", "打工人"],
         tags: ["立绘"],
     },
+    // ── 2026-10-14 新增背景 1 张（Claude娘 vs GPT娘 争抢鲸鱼娘，鲸鱼娘晕倒） ──
+    {
+        kind: "background",
+        src: "/场景/争抢_Claude与GPT_鲸鱼娘晕倒场景背景.png",
+        triggers: ["争抢", "打架", "受欢迎", "抢鲸鱼娘"],
+        tags: ["场景"],
+    },
     // ── 2026-10-14 新增立绘 3 张（靠墙女仆微笑 / 白龙娘从背后抱 / 床上自拍吐舌） ──
     {
         kind: "character",
