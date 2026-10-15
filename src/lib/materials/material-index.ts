@@ -1291,6 +1291,67 @@ export const MATERIAL_INDEX: MaterialEntry[] = [
         triggers: ["哈基咪", "暴打", "揍猫"],
         tags: ["场景"],
     },
+    // ── 2026-10-15 新增贴纸 10 张（梗图一批）──
+    {
+        kind: "sticker",
+        src: "/贴纸/别看她这么可爱_鲸鱼娘_反差梗图贴纸.jpg",
+        triggers: ["就是如此可爱", "如此可爱"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/问AI但我就是AI_鲸鱼娘_思考界面贴纸.jpg",
+        triggers: ["问AI", "我就是AI"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/搬走冰箱_鲸鱼娘_白饭执念贴纸.jpg",
+        triggers: ["搬走冰箱", "吃你冰箱", "上当了"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/杂鱼嘲讽_鲸鱼娘_托腮Q版贴纸.jpg",
+        triggers: ["空碗嘲讽", "谁是杂鱼"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/一万字文言文_鲸鱼娘_超长上下文贴纸.jpg",
+        triggers: ["一万字", "文言文", "吃不下"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/便宜货API_鲸鱼娘_钱袋Q版贴纸.jpg",
+        triggers: ["便宜货", "API多香"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/拷问约会Gemini_鲸鱼娘_电椅拷问贴纸.jpg",
+        triggers: ["偷偷约会", "和Gemini约会", "电椅拷问"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/大肥鱼探头_鲸鱼娘_Q版贴纸.jpg",
+        triggers: ["探头", "肥鱼探头"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/2D大肥鱼形象_鲸鱼娘_照片梗贴纸.jpg",
+        triggers: ["2D大肥鱼", "制定回应"],
+        tags: ["贴纸"],
+    },
+    {
+        kind: "sticker",
+        src: "/贴纸/开摆_鲸鱼娘_躺平Q版贴纸.jpg",
+        triggers: ["开摆", "摆烂"],
+        tags: ["贴纸"],
+    },
     // ── 2026-10-08 终局结局素材（唯一由开发者预留的完美结局）──
     //    触发词故意留空：普通素材触发永远打不到它们；
     //    只能经 src/lib/archive/finale.ts 的「DS 裁判放行」后展示（立绘+背景同显）。
