@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useSelector } from "@tanstack/react-store"
 import { SetupStore } from "@/lib/stores/setup-store"
-import { WhaleBalance, currentPricingMode } from "@/lib/utils/whale-balance"
+import { WhaleBalance, currentPricingMode, formatCountdown, nextPricingSwitch } from "@/lib/utils/whale-balance"
 import type { BalanceSummary } from "@/lib/utils/whale-accounting"
 import { cn } from "@/lib/utils"
 
@@ -20,6 +20,8 @@ export function WhaleWidget() {
   const [dragging, setDragging] = useState(false)
   const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null)
   const widgetRef = useRef<HTMLDivElement>(null)
+  /** 峰谷倒计时的"当前秒"：只在气泡展开时逐秒走（收起时不空转） */
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
 
   useEffect(() => {
     const saved = localStorage.getItem("gal_whale_pos")
@@ -40,13 +42,21 @@ export function WhaleWidget() {
     return () => WhaleBalance.stopPolling()
   }, [apiKey])
 
+  // 峰谷倒计时：展开时每秒刷新一次（切换点本身由 whale-balance 按官方峰谷规则算）
+  useEffect(() => {
+    if (!expanded) return
+    setNowSec(Math.floor(Date.now() / 1000))
+    const timer = window.setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000)
+    return () => window.clearInterval(timer)
+  }, [expanded])
+
   const persistPos = useCallback((p: Position) => {
     localStorage.setItem("gal_whale_pos", JSON.stringify(p))
   }, [])
 
   const clampPos = useCallback((x: number, y: number): Position => {
-    const w = widgetRef.current?.offsetWidth || 64
-    const h = widgetRef.current?.offsetHeight || 64
+    const w = widgetRef.current?.offsetWidth || 110
+    const h = widgetRef.current?.offsetHeight || 130
     return {
       x: Math.max(0, Math.min(x, window.innerWidth - w)),
       y: Math.max(0, Math.min(y, window.innerHeight - h)),
@@ -98,6 +108,16 @@ export function WhaleWidget() {
   const loading = whaleState.loading
   const error = whaleState.error
 
+  /**
+   * 下一个峰谷切换点（随 nowSec 每秒重算）。
+   * 规则走 whale-balance 里那套官方峰谷判定（含周末与节假日豁免），
+   * 所以"时段"那一行和这里的倒计时永远指向同一件事。
+   */
+  const nextSwitch = nextPricingSwitch(nowSec)
+  const costTarget = nextSwitch.target
+  const costRemainSec = nextSwitch.nextAt - nowSec
+  const costTargetLabel = costTarget === "peak" ? "高峰" : "空闲"
+
   if (!apiKey) return null
 
   return (
@@ -118,19 +138,19 @@ export function WhaleWidget() {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
     >
-      {/* 鲸鱼娘图标 */}
-      <div className={cn(
-        "w-16 h-16 rounded-full overflow-hidden shadow-lg border-2 transition-colors",
-        pricingMode === "peak" ? "border-orange-400 shadow-orange-400/30" : "border-blue-400 shadow-blue-400/30",
-        loading && "animate-pulse"
-      )}>
-        <img
-          src="/assets/whale/whale-char.png"
-          alt={whaleName}
-          className="w-full h-full object-cover"
-          draggable={false}
-        />
-      </div>
+      {/* 挂件立绘：直接就是桌宠那张初始立绘（idle-cute），不再裁成圆形头像 */}
+      <img
+        src="/assets/whale/whale-idle.webp"
+        alt={whaleName}
+        className={cn(
+          "pointer-events-none w-[110px] h-auto transition-[filter] duration-200",
+          pricingMode === "peak"
+            ? "drop-shadow-[0_0_10px_rgba(251,146,60,0.55)]"
+            : "drop-shadow-[0_0_10px_rgba(96,165,250,0.55)]",
+          loading && "animate-pulse"
+        )}
+        draggable={false}
+      />
 
       {/* 峰谷小角标 */}
       <span className={cn(
@@ -168,6 +188,13 @@ export function WhaleWidget() {
                 <span>时段</span>
                 <span className={pricingMode === "peak" ? "text-orange-400" : "text-blue-400"}>
                   {pricingMode === "peak" ? "🔴 高峰" : "🔵 空闲"}
+                </span>
+              </div>
+              {/* 峰谷倒计时：指向下一个时段切换点（和桌宠悬停浮层同一套规则） */}
+              <div className="flex justify-between mt-1 text-xs text-slate-400">
+                <span>距{costTargetLabel}</span>
+                <span className={costTarget === "peak" ? "text-orange-400" : "text-blue-400"}>
+                  {formatCountdown(costRemainSec)}
                 </span>
               </div>
             </>

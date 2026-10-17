@@ -58,6 +58,40 @@ export function currentPricingMode(): "peak" | "valley" {
   return isPeakTime(Math.floor(Date.now() / 1000)) ? "peak" : "valley"
 }
 
+/**
+ * 下一个峰谷切换点（挂件倒计时用）。
+ *
+ * 求值**必须走上面那个 isPeakTime**（含周末与节假日豁免），否则会出现
+ * "显示空闲、倒计时却指向高峰"这种自相矛盾 —— 别再写一份简化规则。
+ * 做法：从今天起按天扫 [0, 9, 12, 14, 18] 五个边界，取第一个"状态与当前不同"的时刻；
+ * 春节那种连休可能跨多天，扫 20 天兜住。
+ */
+export function nextPricingSwitch(nowSec: number = Math.floor(Date.now() / 1000)): {
+  nextAt: number
+  target: "peak" | "valley"
+} {
+  const current: "peak" | "valley" = isPeakTime(nowSec) ? "peak" : "valley"
+  const dayStart = Math.floor((nowSec + 8 * 3600) / 86400) * 86400
+  const edges = [0, 9 * 3600, 12 * 3600, 14 * 3600, 18 * 3600]
+  for (let d = 0; d <= 20; d += 1) {
+    const base = dayStart + d * 86400
+    for (const edge of edges) {
+      const ts = base + edge - 8 * 3600
+      if (ts <= nowSec + 1) continue
+      const mode: "peak" | "valley" = isPeakTime(ts) ? "peak" : "valley"
+      if (mode !== current) return { nextAt: ts, target: mode }
+    }
+  }
+  return { nextAt: nowSec + 86400, target: current === "peak" ? "valley" : "peak" }
+}
+
+/** 倒计时文本：HH:MM:SS */
+export function formatCountdown(sec: number): string {
+  const s = Math.max(0, Math.floor(sec))
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${p(Math.floor(s / 3600))}:${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`
+}
+
 export interface WhaleState {
   ledger: Ledger
   summary: BalanceSummary | null
