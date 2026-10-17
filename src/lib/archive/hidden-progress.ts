@@ -24,6 +24,14 @@ import { isElectronDesktop, type WhaleWindow } from "./context-archive";
 
 export type HiddenState = "locked" | "ready" | "played";
 
+/** 两个小游戏各自的通关次数（「番外词 / 隐藏词」累积解锁用）。 */
+export type TipUnlockCounts = {
+    /** 戳泡泡通关次数（番外触发词） */
+    extra: number;
+    /** 接点心通关次数（隐藏剧情触发词） */
+    hidden: number;
+};
+
 export type HiddenProgress = {
     /** 各段状态，key 例如 "s1-1" ～ "s3-3" */
     segments: Record<string, HiddenState>;
@@ -31,6 +39,13 @@ export type HiddenProgress = {
     exploreOpen: boolean;
     /** 每段已探索次数（退出重进从此值继续；0..5） */
     exploreSeq: Record<string, number>;
+    /**
+     * 两个小游戏各自的通关次数（聊天页顶栏「番外词 / 隐藏词」的累积解锁进度）。
+     *
+     * 挂在**这份**快照里是有意的：本快照已经随存档绑定与恢复（见 save-utility），
+     * 于是"通关几次 → 累积展示几段"天然跟着存档走，不用另起一套机制。
+     */
+    tipUnlocks: TipUnlockCounts;
     /** 版本号，供迁移 */
     version: number;
 };
@@ -176,7 +191,7 @@ function defaultProgress(): HiddenProgress {
     // 所有段（含未实现正文的 S2-2/3、S3-*）一律初始化为 locked，首次仅 S1-1 ready
     for (const key of Object.keys(HIDDEN_KEYWORDS)) segments[key] = "locked";
     segments["s1-1"] = "ready";
-    return { segments, exploreOpen: false, exploreSeq: {}, version: 1 };
+    return { segments, exploreOpen: false, exploreSeq: {}, tipUnlocks: { extra: 0, hidden: 0 }, version: 1 };
 }
 
 /**
@@ -191,7 +206,30 @@ function normalizeProgress(progress: HiddenProgress): HiddenProgress {
         ...progress,
         segments: { ...def.segments, ...(progress.segments ?? {}) },
         exploreSeq: { ...(progress.exploreSeq ?? {}) },
+        // 老存档没有 tipUnlocks（该字段随两个小游戏一起加的）→ 合并默认值兜住
+        tipUnlocks: { ...def.tipUnlocks, ...(progress.tipUnlocks ?? {}) },
     };
+}
+
+// ---------------------------------------------------------------- 触发词解锁（两个小游戏）
+
+/** 读两个小游戏的通关次数（供「番外词 / 隐藏词」弹窗展示累积解锁）。 */
+export async function getTipUnlocks(): Promise<TipUnlockCounts> {
+    return (await getHiddenProgress()).tipUnlocks;
+}
+
+/**
+ * 记一次通关（只在**分数过线**时调用），返回更新后的计数。
+ *
+ * 走的是同一份隐藏进度快照 → 同名机制、同一存档绑定，不另起一套读写。
+ * 次数只增不减：走完列表还继续通关的话，由展示层按"从第一段循环"处理。
+ */
+export async function addTipPass(kind: keyof TipUnlockCounts): Promise<TipUnlockCounts> {
+    const progress = await getHiddenProgress();
+    const counts: TipUnlockCounts = { ...progress.tipUnlocks };
+    counts[kind] = Math.max(0, Math.floor(counts[kind] || 0) + 1);
+    await setHiddenProgress({ ...progress, tipUnlocks: counts });
+    return counts;
 }
 
 function openDb(): Promise<IDBDatabase> {

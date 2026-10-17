@@ -21,6 +21,8 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { WhaleBalance } from "@/lib/utils/whale-balance";
 import { WhaleWidget } from "@/components/WhaleWidget";
+import { TipUnlockDialog } from "@/components/tip-unlock-dialog";
+import type { TipKind } from "@/lib/tips/tip-unlocks";
 import { buildGenesisLore } from "@/lib/archive/genesis-lore";
 import { Game } from "@drincs/pixi-vn";
 import { useQueryClient } from "@tanstack/react-query";
@@ -31,7 +33,7 @@ import {
 import { quickSaveGameToIndexDB, getSaveSlotLabel } from "@/lib/utils/save-utility";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Home, Save, ShieldCheck, LibraryBig, DoorOpen, Clapperboard, Archive, ImagePlus, X } from "lucide-react";
+import { Send, Home, Save, ShieldCheck, LibraryBig, DoorOpen, Clapperboard, Archive, ImagePlus, X, Gift, KeyRound } from "lucide-react";
 import { estimateMessagesTokens, MEMORY_TRIGGER_LIMIT, SEAL_REMINDER_LIMIT } from "@/lib/utils/token-estimate";
 import { requestFinaleJudgment, FINALE_ENDING } from "@/lib/archive/finale";
 import { filterDailyMessages, runCompression, saveSealToDB, saveRawSealToDB } from "@/lib/archive/compress";
@@ -120,6 +122,8 @@ export function ChatScreen() {
 
     // ── 隐藏剧情·探索期状态：段演完回聊天后右侧常驻两个按钮 ──
     const [exploreAnchor, setExploreAnchor] = useState<string | null>(null);
+    /** 打开哪个触发词弹窗（null = 关着）：extra 番外词 / hidden 隐藏词 */
+    const [tipKind, setTipKind] = useState<TipKind | null>(null);
     const [exploreOpen, setExploreOpen] = useState(false);
 
     /** 立绘比例：宽/高。判断为正方形或竖版（比例<1.1）时启用左对齐大立绘布局 */
@@ -664,6 +668,25 @@ export function ChatScreen() {
                     </span>
                 </div>
                 <div className="flex items-center gap-1">
+                    {/* 触发词解锁（2026-10-17）：玩游戏过线 → 按顺序解锁，进度随存档绑定 */}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTipKind("extra")}
+                        title="查看番外剧情触发词"
+                    >
+                        <Gift className="size-4" />
+                        {t("extra_tips_button", { defaultValue: "番外词" })}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTipKind("hidden")}
+                        title="查看隐藏剧情触发词"
+                    >
+                        <KeyRound className="size-4" />
+                        {t("hidden_tips_button", { defaultValue: "隐藏词" })}
+                    </Button>
                     <Button
                         variant="ghost"
                         size="sm"
@@ -934,6 +957,9 @@ export function ChatScreen() {
             </footer>
 
             <WhaleWidget />
+
+            {/* 触发词弹窗（内含两个小游戏）：打开时才读该存档的通关次数 */}
+            {tipKind && <TipUnlockDialog kind={tipKind} onClose={() => setTipKind(null)} />}
         </div>
     );
 }
