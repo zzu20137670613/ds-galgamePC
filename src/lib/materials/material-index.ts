@@ -1291,6 +1291,19 @@ export const MATERIAL_INDEX: MaterialEntry[] = [
         triggers: ["哈基咪", "暴打", "揍猫"],
         tags: ["场景"],
     },
+    // ── 2026-10-16 新增场景背景 2 张（女仆装脸部特写「老实写代码」/ 递鲸元卷「睡过头请客」）──
+    {
+        kind: "background",
+        src: "/场景/老实写代码_鲸鱼娘_女仆装特写场景背景.png",
+        triggers: ["老实写代码", "代码枯燥", "枯燥"],
+        tags: ["场景"],
+    },
+    {
+        kind: "background",
+        src: "/场景/鲸元卷_鲸鱼娘_睡过头请客场景背景.jpg",
+        triggers: ["鲸元卷", "睡过头", "疯狂星期四"],
+        tags: ["场景"],
+    },
     // ── 2026-10-15 新增贴纸 10 张（梗图一批）──
     {
         kind: "sticker",
