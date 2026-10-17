@@ -1304,6 +1304,13 @@ export const MATERIAL_INDEX: MaterialEntry[] = [
         triggers: ["鲸元卷", "睡过头", "疯狂星期四"],
         tags: ["场景"],
     },
+    // ── 2026-10-17 新增场景背景 1 张（Q版女仆装、浪上举手欢呼，背后是 DeepSeek 蓝鲸）──
+    {
+        kind: "background",
+        src: "/场景/欢呼_鲸鱼娘_女仆装浪上雀跃场景背景.png",
+        triggers: ["欢呼", "举手欢呼", "撒花", "万岁"],
+        tags: ["场景"],
+    },
     // ── 2026-10-15 新增贴纸 10 张（梗图一批）──
     {
         kind: "sticker",
