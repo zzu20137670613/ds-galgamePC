@@ -91,7 +91,9 @@ function ResultOverlay({
                 <Button size="sm" onClick={onRetry}>
                     再玩一次
                 </Button>
-                <Button size="sm" variant="outline" onClick={onBack}>
+                {/* 必须用带显式文字色的 variant：结算浮层是深色面板，而 outline 只给背景不给文字色，
+                    浅色主题下会变成"白底 + 继承来的浅色字" → 看不出字（hover 才显形）。 */}
+                <Button size="sm" variant="secondary" onClick={onBack}>
                     返回
                 </Button>
             </div>
