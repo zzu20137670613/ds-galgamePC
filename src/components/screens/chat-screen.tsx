@@ -676,7 +676,7 @@ export function ChatScreen() {
                         title="查看番外剧情触发词"
                     >
                         <Gift className="size-4" />
-                        {t("extra_tips_button", { defaultValue: "番外词" })}
+                        {t("extra_tips_button", { defaultValue: "番外触发词" })}
                     </Button>
                     <Button
                         variant="ghost"
@@ -685,7 +685,7 @@ export function ChatScreen() {
                         title="查看隐藏剧情触发词"
                     >
                         <KeyRound className="size-4" />
-                        {t("hidden_tips_button", { defaultValue: "隐藏词" })}
+                        {t("hidden_tips_button", { defaultValue: "隐藏触发词" })}
                     </Button>
                     <Button
                         variant="ghost"
