@@ -1,7 +1,7 @@
 {
   "name": "deepseek-gal",
   "description": "DeepSeek Whale Galgame",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "type": "module",
   "license": "GPL-3.0",
   "main": "electron/main.mjs",
