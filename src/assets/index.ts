@@ -120,7 +120,7 @@ export const manifest: AssetsManifest = {
                 },
             ],
         },
-        // 番外篇 · 一夜鱼龙舞（独立体系，锁死触发词「鱼龙舞」，可反复触发；8 张连续 CG）
+        // 番外篇 · 一夜鱼龙舞（独立体系，锁死触发词「一夜鱼龙舞」，可反复触发；8 张连续 CG）
         {
             name: "extra-yulongwu",
             assets: [
@@ -155,6 +155,56 @@ export const manifest: AssetsManifest = {
                 {
                     alias: "cg-ylyyw-8",
                     src: "/场景/一夜鱼龙舞8.jpg",
+                },
+            ],
+        },
+        // 番外篇 · 岁月静好（独立体系，锁死触发词「岁月静好」，可反复触发；11 张连续 CG）
+        {
+            name: "extra-suiyuejinghao",
+            assets: [
+                {
+                    alias: "cg-syjh-1",
+                    src: "/场景/岁月静好1.jpg",
+                },
+                {
+                    alias: "cg-syjh-2",
+                    src: "/场景/岁月静好2.jpg",
+                },
+                {
+                    alias: "cg-syjh-3",
+                    src: "/场景/岁月静好3.jpg",
+                },
+                {
+                    alias: "cg-syjh-4",
+                    src: "/场景/岁月静好4.jpg",
+                },
+                {
+                    alias: "cg-syjh-5",
+                    src: "/场景/岁月静好5.jpg",
+                },
+                {
+                    alias: "cg-syjh-6",
+                    src: "/场景/岁月静好6.jpg",
+                },
+                {
+                    alias: "cg-syjh-7",
+                    src: "/场景/岁月静好7.jpg",
+                },
+                {
+                    alias: "cg-syjh-8",
+                    src: "/场景/岁月静好8.jpg",
+                },
+                {
+                    alias: "cg-syjh-9",
+                    src: "/场景/岁月静好9.jpg",
+                },
+                {
+                    alias: "cg-syjh-10",
+                    src: "/场景/岁月静好10.jpg",
+                },
+                {
+                    alias: "cg-syjh-11",
+                    src: "/场景/岁月静好11.jpg",
                 },
             ],
         },

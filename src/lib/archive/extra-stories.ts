@@ -22,8 +22,14 @@ export const EXTRA_STORIES: readonly ExtraStory[] = [
     {
         id: "yulongwu",
         title: "一夜鱼龙舞",
-        trigger: "鱼龙舞",
+        trigger: "一夜鱼龙舞",
         label: "extra-yulongwu",
+    },
+    {
+        id: "suiyuejinghao",
+        title: "岁月静好",
+        trigger: "岁月静好",
+        label: "extra-suiyuejinghao",
     },
 ];
 

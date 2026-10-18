@@ -5,7 +5,7 @@ import { narration, newLabel } from "@drincs/pixi-vn";
 
 /**
  * 番外篇《一夜鱼龙舞》（独立体系，非九段主线）。
- * 触发：锁死触发词「鱼龙舞」（见 lib/archive/extra-stories.ts），可反复触发、无进度状态机。
+ * 触发：锁死触发词「一夜鱼龙舞」（见 lib/archive/extra-stories.ts），可反复触发、无进度状态机。
  * 「鲸鱼娘」占位符 → 运行时替换为用户设定名（whaleName）。
  * 画面锚点：cg-ylyyw-1 ~ 8（八张连续 CG 逐张切换）；口味：甜辣递进·意象留白（不写露骨）。
  * 分幕：灯会棋亭（近）→ 系带（近）→ 烟花（对望）→ 进屋 → 尾巴缠上 → 张力拉满 → 十指相扣 → 余韵。

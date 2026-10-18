@@ -109,6 +109,9 @@ export function ChatScreen() {
     /** 立绘联动序列：链式定时器 + 代次令牌（被新命中/封卷打断时作废旧令牌） */
     const characterSeqTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const characterSeqTokenRef = useRef(0);
+    /** 背景延时联动（战锤线 → 群星线）：接力定时器 + 代次令牌（命中其它背景/封卷时作废） */
+    const backgroundSeqTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const backgroundSeqTokenRef = useRef(0);
 
     // ── 长期记忆状态：用户挑选保留的记忆 / 是否已弹出 55k 提醒 ──
     const [memories, setMemories] = useState<SavedMemory[]>([]);
@@ -218,6 +221,11 @@ export function ChatScreen() {
                 characterSeqTimerRef.current = null;
             }
             characterSeqTokenRef.current += 1;
+            if (backgroundSeqTimerRef.current) {
+                clearTimeout(backgroundSeqTimerRef.current);
+                backgroundSeqTimerRef.current = null;
+            }
+            backgroundSeqTokenRef.current += 1;
             if (characterDismissTimerRef.current) {
                 clearTimeout(characterDismissTimerRef.current);
                 characterDismissTimerRef.current = null;
@@ -240,6 +248,8 @@ export function ChatScreen() {
     const CHARACTER_DISMISS_MS = 5000;
     /** 群星战书存在时长（ms）：序列末帧与单独命中第三张时特殊处理为 10 秒 */
     const SEQUENCE_FINAL_DISMISS_MS = 10000;
+    /** 背景延时联动步长（ms）：首张命中后等这么久，期间无其它背景命中才自动续下一张 */
+    const BACKGROUND_SEQUENCE_DELAY_MS = 15000;
 
     /** 中断进行中的立绘联动序列（命中普通立绘 / 封卷结局 / 重复命中时调用） */
     const stopCharacterSequence = () => {
@@ -309,13 +319,55 @@ export function ChatScreen() {
         characterSeqTimerRef.current = setTimeout(step, CHARACTER_SEQUENCE_STEP_MS);
     };
 
+    /** 中断进行中的背景延时联动（命中任意背景 / 封卷结局 / 组件卸载时调用） */
+    const stopBackgroundSequence = () => {
+        if (backgroundSeqTimerRef.current) {
+            clearTimeout(backgroundSeqTimerRef.current);
+            backgroundSeqTimerRef.current = null;
+        }
+        backgroundSeqTokenRef.current += 1;
+    };
+
+    /**
+     * 命中带 sequence 的背景：先显示首张，等 BACKGROUND_SEQUENCE_DELAY_MS；
+     * 期间若没有别的背景被命中，自动切下一张（末张常驻，不再接力）。
+     * 命中任意其它背景都会先走 stopBackgroundSequence() 使 token 失效，接力自然中断。
+     */
+    const runBackgroundSequence = (first: MaterialEntry) => {
+        const seq = first.sequence ?? [];
+        stopBackgroundSequence();
+        const token = backgroundSeqTokenRef.current;
+        setBackground(first.src);
+        let nextIndex = 0;
+        const step = () => {
+            if (backgroundSeqTokenRef.current !== token) return; // 已被其它背景打断
+            if (nextIndex >= seq.length) {
+                backgroundSeqTimerRef.current = null;
+                return;
+            }
+            setBackground(seq[nextIndex]);
+            nextIndex += 1;
+            if (nextIndex >= seq.length) {
+                backgroundSeqTimerRef.current = null; // 末张：常驻，不再接力
+                return;
+            }
+            backgroundSeqTimerRef.current = setTimeout(step, BACKGROUND_SEQUENCE_DELAY_MS);
+        };
+        backgroundSeqTimerRef.current = setTimeout(step, BACKGROUND_SEQUENCE_DELAY_MS);
+    };
+
     /** 扫描文本，按形态把命中的素材填进对应槽位 */
     const applyMaterials = (text: string) => {
         const hit = matchMaterials(text);
         if (!hit) return;
         switch (hit.entry.kind) {
             case "background":
-                setBackground(hit.entry.src);
+                stopBackgroundSequence(); // 任意背景命中都先打断旧的延时联动
+                if (hit.entry.sequence && hit.entry.sequence.length > 0) {
+                    runBackgroundSequence(hit.entry);
+                } else {
+                    setBackground(hit.entry.src);
+                }
                 break;
             case "character":
                 stopCharacterSequence();
@@ -575,6 +627,7 @@ export function ChatScreen() {
             if (verdict === "grant") {
                 stopCharacterSequence();
                 stopCharacterDismiss(); // 结局立绘常驻：作废旧消失定时，防止误清终章立绘
+                stopBackgroundSequence(); // 结局背景是终态：作废未跑完的背景延时接力
                 setBackground(FINALE_ENDING.backgroundSrc);
                 setCharacter({ kind: "character", src: FINALE_ENDING.characterSrc, triggers: [] });
                 toast("她答应了。", { description: "封卷完成后，这份结局会一起存进去。" });

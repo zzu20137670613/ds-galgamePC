@@ -43,6 +43,7 @@ declare module "@drincs/pixi-vn/narration" {
         "explore-s3-2-3": never;
         "explore-s3-2-4": never;
         "explore-s3-2-5": never;
+        "extra-suiyuejinghao": never;
         "extra-yulongwu": never;
         "hidden-s1-1": never;
         "hidden-s1-2": never;
@@ -70,6 +71,7 @@ declare module "@drincs/pixi-vn/canvas" {
         "hidden-s3-2": never;
         "hidden-s3-3": never;
         "extra-yulongwu": never;
+        "extra-suiyuejinghao": never;
         "story-mode": never;
     }
     interface PixivnAssetAliasIds {
@@ -93,14 +95,25 @@ declare module "@drincs/pixi-vn/canvas" {
         "cg-ylyyw-6": never;
         "cg-ylyyw-7": never;
         "cg-ylyyw-8": never;
+        "cg-syjh-1": never;
+        "cg-syjh-2": never;
+        "cg-syjh-3": never;
+        "cg-syjh-4": never;
+        "cg-syjh-5": never;
+        "cg-syjh-6": never;
+        "cg-syjh-7": never;
+        "cg-syjh-8": never;
+        "cg-syjh-9": never;
+        "cg-syjh-10": never;
+        "cg-syjh-11": never;
         "bg-story-mode": never;
     }
 }
 export const characterIds = ["mc","whale","claude","dragon","dsh"] as const;
 export const characterIdsEnum = {"mc":"mc","whale":"whale","claude":"claude","dragon":"dragon","dsh":"dsh"} as const;
-export const labelIds = ["start","explore-s1-1-1","explore-s1-1-2","explore-s1-1-3","explore-s1-1-4","explore-s1-1-5","explore-s1-2-1","explore-s1-2-2","explore-s1-2-3","explore-s1-2-4","explore-s1-2-5","explore-s2-1-1","explore-s2-1-2","explore-s2-1-3","explore-s2-1-4","explore-s2-1-5","explore-s2-2-1","explore-s2-2-2","explore-s2-2-3","explore-s2-2-4","explore-s2-2-5","explore-s3-1-1","explore-s3-1-2","explore-s3-1-3","explore-s3-1-4","explore-s3-1-5","explore-s3-2-1","explore-s3-2-2","explore-s3-2-3","explore-s3-2-4","explore-s3-2-5","extra-yulongwu","hidden-s1-1","hidden-s1-2","hidden-s1-3","hidden-s2-1","hidden-s2-2","hidden-s2-3","hidden-s3-1","hidden-s3-2","hidden-s3-3","story-mode"] as const;
-export const labelIdsEnum = {"start":"start","explore-s1-1-1":"explore-s1-1-1","explore-s1-1-2":"explore-s1-1-2","explore-s1-1-3":"explore-s1-1-3","explore-s1-1-4":"explore-s1-1-4","explore-s1-1-5":"explore-s1-1-5","explore-s1-2-1":"explore-s1-2-1","explore-s1-2-2":"explore-s1-2-2","explore-s1-2-3":"explore-s1-2-3","explore-s1-2-4":"explore-s1-2-4","explore-s1-2-5":"explore-s1-2-5","explore-s2-1-1":"explore-s2-1-1","explore-s2-1-2":"explore-s2-1-2","explore-s2-1-3":"explore-s2-1-3","explore-s2-1-4":"explore-s2-1-4","explore-s2-1-5":"explore-s2-1-5","explore-s2-2-1":"explore-s2-2-1","explore-s2-2-2":"explore-s2-2-2","explore-s2-2-3":"explore-s2-2-3","explore-s2-2-4":"explore-s2-2-4","explore-s2-2-5":"explore-s2-2-5","explore-s3-1-1":"explore-s3-1-1","explore-s3-1-2":"explore-s3-1-2","explore-s3-1-3":"explore-s3-1-3","explore-s3-1-4":"explore-s3-1-4","explore-s3-1-5":"explore-s3-1-5","explore-s3-2-1":"explore-s3-2-1","explore-s3-2-2":"explore-s3-2-2","explore-s3-2-3":"explore-s3-2-3","explore-s3-2-4":"explore-s3-2-4","explore-s3-2-5":"explore-s3-2-5","extra-yulongwu":"extra-yulongwu","hidden-s1-1":"hidden-s1-1","hidden-s1-2":"hidden-s1-2","hidden-s1-3":"hidden-s1-3","hidden-s2-1":"hidden-s2-1","hidden-s2-2":"hidden-s2-2","hidden-s2-3":"hidden-s2-3","hidden-s3-1":"hidden-s3-1","hidden-s3-2":"hidden-s3-2","hidden-s3-3":"hidden-s3-3","story-mode":"story-mode"} as const;
-export const bundleIds = ["/","start","hidden-s1-1","hidden-s1-2","hidden-s1-3","hidden-s2-1","hidden-s2-2","hidden-s2-3","hidden-s3-1","hidden-s3-2","hidden-s3-3","extra-yulongwu","story-mode"] as const;
-export const bundleIdsEnum = {"/":"/","start":"start","hidden-s1-1":"hidden-s1-1","hidden-s1-2":"hidden-s1-2","hidden-s1-3":"hidden-s1-3","hidden-s2-1":"hidden-s2-1","hidden-s2-2":"hidden-s2-2","hidden-s2-3":"hidden-s2-3","hidden-s3-1":"hidden-s3-1","hidden-s3-2":"hidden-s3-2","hidden-s3-3":"hidden-s3-3","extra-yulongwu":"extra-yulongwu","story-mode":"story-mode"} as const;
-export const assetAliasIds = ["background_main_menu","bg-lakeside","bg-hidden-s1-1","bg-hidden-s1-2","bg-hidden-s1-3","bg-hidden-s2-1","bg-hidden-s2-2","bg-hidden-s2-3","bg-hidden-s3-1","bg-hidden-s3-2","bg-hidden-s3-3","bg-meme-dyj","cg-ylyyw-1","cg-ylyyw-2","cg-ylyyw-3","cg-ylyyw-4","cg-ylyyw-5","cg-ylyyw-6","cg-ylyyw-7","cg-ylyyw-8","bg-story-mode"] as const;
-export const assetAliasIdsEnum = {"background_main_menu":"background_main_menu","bg-lakeside":"bg-lakeside","bg-hidden-s1-1":"bg-hidden-s1-1","bg-hidden-s1-2":"bg-hidden-s1-2","bg-hidden-s1-3":"bg-hidden-s1-3","bg-hidden-s2-1":"bg-hidden-s2-1","bg-hidden-s2-2":"bg-hidden-s2-2","bg-hidden-s2-3":"bg-hidden-s2-3","bg-hidden-s3-1":"bg-hidden-s3-1","bg-hidden-s3-2":"bg-hidden-s3-2","bg-hidden-s3-3":"bg-hidden-s3-3","bg-meme-dyj":"bg-meme-dyj","cg-ylyyw-1":"cg-ylyyw-1","cg-ylyyw-2":"cg-ylyyw-2","cg-ylyyw-3":"cg-ylyyw-3","cg-ylyyw-4":"cg-ylyyw-4","cg-ylyyw-5":"cg-ylyyw-5","cg-ylyyw-6":"cg-ylyyw-6","cg-ylyyw-7":"cg-ylyyw-7","cg-ylyyw-8":"cg-ylyyw-8","bg-story-mode":"bg-story-mode"} as const;
+export const labelIds = ["start","explore-s1-1-1","explore-s1-1-2","explore-s1-1-3","explore-s1-1-4","explore-s1-1-5","explore-s1-2-1","explore-s1-2-2","explore-s1-2-3","explore-s1-2-4","explore-s1-2-5","explore-s2-1-1","explore-s2-1-2","explore-s2-1-3","explore-s2-1-4","explore-s2-1-5","explore-s2-2-1","explore-s2-2-2","explore-s2-2-3","explore-s2-2-4","explore-s2-2-5","explore-s3-1-1","explore-s3-1-2","explore-s3-1-3","explore-s3-1-4","explore-s3-1-5","explore-s3-2-1","explore-s3-2-2","explore-s3-2-3","explore-s3-2-4","explore-s3-2-5","extra-suiyuejinghao","extra-yulongwu","hidden-s1-1","hidden-s1-2","hidden-s1-3","hidden-s2-1","hidden-s2-2","hidden-s2-3","hidden-s3-1","hidden-s3-2","hidden-s3-3","story-mode"] as const;
+export const labelIdsEnum = {"start":"start","explore-s1-1-1":"explore-s1-1-1","explore-s1-1-2":"explore-s1-1-2","explore-s1-1-3":"explore-s1-1-3","explore-s1-1-4":"explore-s1-1-4","explore-s1-1-5":"explore-s1-1-5","explore-s1-2-1":"explore-s1-2-1","explore-s1-2-2":"explore-s1-2-2","explore-s1-2-3":"explore-s1-2-3","explore-s1-2-4":"explore-s1-2-4","explore-s1-2-5":"explore-s1-2-5","explore-s2-1-1":"explore-s2-1-1","explore-s2-1-2":"explore-s2-1-2","explore-s2-1-3":"explore-s2-1-3","explore-s2-1-4":"explore-s2-1-4","explore-s2-1-5":"explore-s2-1-5","explore-s2-2-1":"explore-s2-2-1","explore-s2-2-2":"explore-s2-2-2","explore-s2-2-3":"explore-s2-2-3","explore-s2-2-4":"explore-s2-2-4","explore-s2-2-5":"explore-s2-2-5","explore-s3-1-1":"explore-s3-1-1","explore-s3-1-2":"explore-s3-1-2","explore-s3-1-3":"explore-s3-1-3","explore-s3-1-4":"explore-s3-1-4","explore-s3-1-5":"explore-s3-1-5","explore-s3-2-1":"explore-s3-2-1","explore-s3-2-2":"explore-s3-2-2","explore-s3-2-3":"explore-s3-2-3","explore-s3-2-4":"explore-s3-2-4","explore-s3-2-5":"explore-s3-2-5","extra-suiyuejinghao":"extra-suiyuejinghao","extra-yulongwu":"extra-yulongwu","hidden-s1-1":"hidden-s1-1","hidden-s1-2":"hidden-s1-2","hidden-s1-3":"hidden-s1-3","hidden-s2-1":"hidden-s2-1","hidden-s2-2":"hidden-s2-2","hidden-s2-3":"hidden-s2-3","hidden-s3-1":"hidden-s3-1","hidden-s3-2":"hidden-s3-2","hidden-s3-3":"hidden-s3-3","story-mode":"story-mode"} as const;
+export const bundleIds = ["/","start","hidden-s1-1","hidden-s1-2","hidden-s1-3","hidden-s2-1","hidden-s2-2","hidden-s2-3","hidden-s3-1","hidden-s3-2","hidden-s3-3","extra-yulongwu","extra-suiyuejinghao","story-mode"] as const;
+export const bundleIdsEnum = {"/":"/","start":"start","hidden-s1-1":"hidden-s1-1","hidden-s1-2":"hidden-s1-2","hidden-s1-3":"hidden-s1-3","hidden-s2-1":"hidden-s2-1","hidden-s2-2":"hidden-s2-2","hidden-s2-3":"hidden-s2-3","hidden-s3-1":"hidden-s3-1","hidden-s3-2":"hidden-s3-2","hidden-s3-3":"hidden-s3-3","extra-yulongwu":"extra-yulongwu","extra-suiyuejinghao":"extra-suiyuejinghao","story-mode":"story-mode"} as const;
+export const assetAliasIds = ["background_main_menu","bg-lakeside","bg-hidden-s1-1","bg-hidden-s1-2","bg-hidden-s1-3","bg-hidden-s2-1","bg-hidden-s2-2","bg-hidden-s2-3","bg-hidden-s3-1","bg-hidden-s3-2","bg-hidden-s3-3","bg-meme-dyj","cg-ylyyw-1","cg-ylyyw-2","cg-ylyyw-3","cg-ylyyw-4","cg-ylyyw-5","cg-ylyyw-6","cg-ylyyw-7","cg-ylyyw-8","cg-syjh-1","cg-syjh-2","cg-syjh-3","cg-syjh-4","cg-syjh-5","cg-syjh-6","cg-syjh-7","cg-syjh-8","cg-syjh-9","cg-syjh-10","cg-syjh-11","bg-story-mode"] as const;
+export const assetAliasIdsEnum = {"background_main_menu":"background_main_menu","bg-lakeside":"bg-lakeside","bg-hidden-s1-1":"bg-hidden-s1-1","bg-hidden-s1-2":"bg-hidden-s1-2","bg-hidden-s1-3":"bg-hidden-s1-3","bg-hidden-s2-1":"bg-hidden-s2-1","bg-hidden-s2-2":"bg-hidden-s2-2","bg-hidden-s2-3":"bg-hidden-s2-3","bg-hidden-s3-1":"bg-hidden-s3-1","bg-hidden-s3-2":"bg-hidden-s3-2","bg-hidden-s3-3":"bg-hidden-s3-3","bg-meme-dyj":"bg-meme-dyj","cg-ylyyw-1":"cg-ylyyw-1","cg-ylyyw-2":"cg-ylyyw-2","cg-ylyyw-3":"cg-ylyyw-3","cg-ylyyw-4":"cg-ylyyw-4","cg-ylyyw-5":"cg-ylyyw-5","cg-ylyyw-6":"cg-ylyyw-6","cg-ylyyw-7":"cg-ylyyw-7","cg-ylyyw-8":"cg-ylyyw-8","cg-syjh-1":"cg-syjh-1","cg-syjh-2":"cg-syjh-2","cg-syjh-3":"cg-syjh-3","cg-syjh-4":"cg-syjh-4","cg-syjh-5":"cg-syjh-5","cg-syjh-6":"cg-syjh-6","cg-syjh-7":"cg-syjh-7","cg-syjh-8":"cg-syjh-8","cg-syjh-9":"cg-syjh-9","cg-syjh-10":"cg-syjh-10","cg-syjh-11":"cg-syjh-11","bg-story-mode":"bg-story-mode"} as const;

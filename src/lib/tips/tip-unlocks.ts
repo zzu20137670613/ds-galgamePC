@@ -22,7 +22,7 @@ export type TipEntry = {
  * 番外触发词：**以后还会新增**，新番外定稿时往数组末尾追加一行即可
  * （数组顺序 = 给词顺序，不要插队）。
  */
-export const EXTRA_TIPS: readonly TipEntry[] = [{ text: "一夜鱼龙舞" }];
+export const EXTRA_TIPS: readonly TipEntry[] = [{ text: "一夜鱼龙舞" }, { text: "岁月静好" }];
 
 /**
  * 隐藏剧情触发词：9 段固定 = 3 场 × 3 段，这三条正是**三道章入口**的词
