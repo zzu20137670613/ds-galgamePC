@@ -1385,6 +1385,67 @@ export const MATERIAL_INDEX: MaterialEntry[] = [
         triggers: ["抱歉啦", "求原谅啦", "给你红包", "红包"],
         tags: ["贴纸"],
     },
+    // ── 2026-10-17 新增立绘 10 张（Q版晚安 / 竹林仰望 / 烟花夜 / 舞台开唱 / 珍珠白纱泳装 / 眼镜女仆 / 青花瓷团扇 / 城市吃汉堡 / DeepSeek宗大军 / 相拥入眠）──
+    {
+        kind: "character",
+        src: "/立绘/晚安好梦_鲸鱼娘_Q版立绘.jpg",
+        triggers: ["道晚安", "好梦", "做个好梦", "晚安好梦"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/竹影仰望_鲸鱼娘_女仆装林间立绘.jpg",
+        triggers: ["竹影", "仰望", "竹林", "抬头仰望"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/烟花夜_鲸鱼娘_窗边看烟火立绘.jpg",
+        triggers: ["烟花", "看烟花", "烟花大会", "夏日祭"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/演唱会_鲸鱼娘_舞台开唱立绘.jpg",
+        triggers: ["演唱会", "开唱", "麦克风", "歌姬"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/泳装_鲸鱼娘_珍珠白纱立绘.jpg",
+        triggers: ["泳装", "比基尼", "珍珠白纱", "泳装照"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/眼镜_鲸鱼娘_女仆装特写立绘.jpg",
+        triggers: ["眼镜", "戴眼镜", "眼镜娘"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/青花瓷_鲸鱼娘_旗袍团扇立绘.jpg",
+        triggers: ["青花瓷", "团扇", "水乡"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/麦当劳_鲸鱼娘_城市吃汉堡立绘.jpg",
+        triggers: ["麦当劳", "汉堡", "吃汉堡", "快餐"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/宗门_鲸鱼娘_DeepSeek宗大军立绘.jpg",
+        triggers: ["宗门", "DeepSeek宗", "大军", "问道深度"],
+        tags: ["立绘"],
+    },
+    {
+        kind: "character",
+        src: "/立绘/相拥入眠_鲸鱼娘_冬日雪夜立绘.jpg",
+        triggers: ["相拥入眠", "雪夜", "一起睡", "冬夜"],
+        tags: ["立绘"],
+    },
     // ── 2026-10-08 终局结局素材（唯一由开发者预留的完美结局）──
     //    触发词故意留空：普通素材触发永远打不到它们；
     //    只能经 src/lib/archive/finale.ts 的「DS 裁判放行」后展示（立绘+背景同显）。
