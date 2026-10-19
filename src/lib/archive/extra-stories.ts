@@ -31,6 +31,14 @@ export const EXTRA_STORIES: readonly ExtraStory[] = [
         trigger: "岁月静好",
         label: "extra-suiyuejinghao",
     },
+    {
+        id: "kaiguanri",
+        title: "开馆日",
+        // 触发词不带问号：命中判定是「消息包含该词」，写「今天营业吗」时
+        // 玩家敲「今天营业吗？」同样包含它，两种写法都能进；反过来带问号就漏了没问号的写法。
+        trigger: "今天营业吗",
+        label: "extra-kaiguanri",
+    },
 ];
 
 /** 命中判定：文本包含任一「锁死触发词」→ 返回对应番外（可反复触发，无状态） */

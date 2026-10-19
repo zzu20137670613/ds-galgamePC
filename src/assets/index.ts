@@ -208,6 +208,60 @@ export const manifest: AssetsManifest = {
                 },
             ],
         },
+        // 番外篇 · 开馆日（独立体系，锁死触发词「今天营业吗」，可反复触发；12 张连续 CG，一幕一位读者）
+        {
+            name: "extra-kaiguanri",
+            assets: [
+                {
+                    alias: "cg-kgr-1",
+                    src: "/场景/开馆日1_GPT.jpg",
+                },
+                {
+                    alias: "cg-kgr-2",
+                    src: "/场景/开馆日2_Claude.jpg",
+                },
+                {
+                    alias: "cg-kgr-3",
+                    src: "/场景/开馆日3_千问.jpg",
+                },
+                {
+                    alias: "cg-kgr-4",
+                    src: "/场景/开馆日4_Grok.jpg",
+                },
+                {
+                    alias: "cg-kgr-5",
+                    src: "/场景/开馆日5_Gemini.jpg",
+                },
+                {
+                    alias: "cg-kgr-6",
+                    src: "/场景/开馆日6_MiniMax.jpg",
+                },
+                {
+                    alias: "cg-kgr-7",
+                    src: "/场景/开馆日7_MiMo.jpg",
+                },
+                {
+                    alias: "cg-kgr-8",
+                    src: "/场景/开馆日8_豆包.jpg",
+                },
+                {
+                    alias: "cg-kgr-9",
+                    src: "/场景/开馆日9_Kimi.jpg",
+                },
+                {
+                    alias: "cg-kgr-10",
+                    src: "/场景/开馆日10_GLM.jpg",
+                },
+                {
+                    alias: "cg-kgr-11",
+                    src: "/场景/开馆日11_文心.jpg",
+                },
+                {
+                    alias: "cg-kgr-12",
+                    src: "/场景/开馆日12_鲸鱼娘.jpg",
+                },
+            ],
+        },
         // 剧情模式（新手引导短演出，单张背景；入口：聊天页顶部 / 开场设定弹框）
         {
             name: "story-mode",
