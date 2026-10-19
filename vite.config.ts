@@ -49,6 +49,20 @@ export default defineConfig(({ mode }) => ({
             },
         }),
         VitePWA({
+            /*
+             * 2026-10-19：改为「自毁」模式（selfDestroying）—— 本仓库只发 Windows exe，
+             * 网页版只是作者自测用，Service Worker 在这里没有离线价值，却带来一个隐蔽的大坑：
+             *   · sw.js 里有 `new NavigationRoute(createHandlerBoundToURL("index.html"))`，
+             *     于是**每次打开都从预缓存里返回旧版 index.html**；
+             *   · registerSW.js 又从不调 skipWaiting()，新 SW 装好也不接管 ⇒ 界面被钉在旧版。
+             * 表现就是「装了新 exe，界面还是老样子」——已实测踩到（顶栏少两个按钮、
+             * 挂件气泡少「距高峰」倒计时行，而包体里的 dist 其实是最新的）。
+             * selfDestroying 让打包出的 SW 自己注销 + 清缓存：老用户升级后会被自动清干净，
+             * 之后不再注册任何 SW，这类坑永久消失。
+             * 注意：此模式下下面的 precache / runtimeCaching 不再生效（SW 只剩自毁动作）；
+             * 若哪天要恢复真正的离线 PWA，把这一行删掉即可。
+             */
+            selfDestroying: true,
             // generate icons with: npm run icon
             includeAssets: ["favicon.ico", "apple-touch-icon-180x180.png"],
             manifest: {
