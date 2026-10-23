@@ -15,8 +15,11 @@ import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { narration } from "@drincs/pixi-vn";
 
-/** 番外《一夜鱼龙舞》：背景偏暗，正文强制亮色避免黑字看不清 */
-const YULONGWU_LABEL_ID = "extra-yulongwu" as const;
+/**
+ * 背景偏暗的番外：正文强制亮色，避免黑字看不清。
+ * 《一夜鱼龙舞》（灯会夜景）与《白米饭》（废墟/雨夜/夜门外/书房，四张都压得暗）。
+ */
+const LIGHT_TEXT_LABELS = new Set(["extra-yulongwu", "extra-baifan"]);
 
 export function NarrationCards() {
     const { data: { character } = {} } = useQueryDialogue();
@@ -96,7 +99,7 @@ export const Text = memo(function Text({
 }) {
     const typewriterDelay = useSelector(TextDisplaySettings.store, (state) => state.delay);
     const { data: { animatedText, text } = {}, finalizeDialogue } = useQueryDialogue();
-    const isYulongwu = narration.currentLabel?.id === YULONGWU_LABEL_ID;
+    const useLightText = LIGHT_TEXT_LABELS.has(narration.currentLabel?.id ?? "");
 
     const handleCharacterAnimationComplete = useCallback(
         (ref: { current: HTMLSpanElement | null }) => {
@@ -150,7 +153,7 @@ export const Text = memo(function Text({
         <p
             className="prose dark:prose-invert m-0 max-w-full p-0"
             style={
-                isYulongwu
+                useLightText
                     ? { color: "rgba(255,255,255,.95)", textShadow: "0 1px 3px rgba(0,0,0,.9)" }
                     : undefined
             }

@@ -23,11 +23,13 @@ export type TipEntry = {
  * （数组顺序 = 给词顺序，不要插队）。
  *
  * 顺序（2026-10-18 用户定稿）：第 1 次通关 → 开馆日，第 2 次 → 岁月静好，第 3 次 → 一夜鱼龙舞。
+ * 2026-10-23 追加：第 4 次 → 白米饭（与 2.5D《the-11th-forest》隐藏关互为彩蛋）。
  */
 export const EXTRA_TIPS: readonly TipEntry[] = [
     { text: "今天营业吗" },
     { text: "岁月静好" },
     { text: "一夜鱼龙舞" },
+    { text: "白米饭" },
 ];
 
 /**

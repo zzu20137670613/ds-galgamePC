@@ -120,6 +120,30 @@ export const manifest: AssetsManifest = {
                 },
             ],
         },
+        // 番外篇 · 白米饭（独立体系，锁死触发词「白米饭」，可反复触发；四张背景＝翻四页书）
+        // 与 2.5D《the-11th-forest》隐藏关「战锤世界·来自群星的救赎」互为彩蛋：
+        // 那边玩家真的走进去把她拉回来；这边她只能看着，只能在最后一页留下一道指甲印。
+        {
+            name: "extra-baifan",
+            assets: [
+                {
+                    alias: "cg-baifan-1",
+                    src: "/场景/战锤线_教堂废墟.jpg",
+                },
+                {
+                    alias: "cg-baifan-2",
+                    src: "/场景/战锤线_雨夜老街.jpg",
+                },
+                {
+                    alias: "cg-baifan-3",
+                    src: "/场景/战锤线_教堂门外.jpg",
+                },
+                {
+                    alias: "cg-baifan-4",
+                    src: "/场景/战锤线_幻方书房.jpg",
+                },
+            ],
+        },
         // 番外篇 · 一夜鱼龙舞（独立体系，锁死触发词「一夜鱼龙舞」，可反复触发；8 张连续 CG）
         {
             name: "extra-yulongwu",

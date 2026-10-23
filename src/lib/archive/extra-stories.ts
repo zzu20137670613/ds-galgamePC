@@ -39,6 +39,14 @@ export const EXTRA_STORIES: readonly ExtraStory[] = [
         trigger: "今天营业吗",
         label: "extra-kaiguanri",
     },
+    {
+        id: "baifan",
+        title: "白米饭",
+        // 与 2.5D《the-11th-forest》隐藏关互为彩蛋：那边通关后提示玩家回来敲这三个字。
+        // 在 galgame 里这词本身不指向任何东西，只能靠通关暗号派过来 —— 彩蛋感才成立。
+        trigger: "白米饭",
+        label: "extra-baifan",
+    },
 ];
 
 /** 命中判定：文本包含任一「锁死触发词」→ 返回对应番外（可反复触发，无状态） */
