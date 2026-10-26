@@ -16,6 +16,55 @@ import {
 } from "@/lib/tips/tip-unlocks";
 
 /**
+ * 小游戏设计盒（416×320）。
+ *
+ * 原来游戏区写死 `h-[320px]`：PC / 模拟器 / 网页都够，实机横屏的可视高度往往只有 300 出头，
+ * 底部被 `overflow-hidden` 直接裁掉 —— 接点心的判定线在 87%、托盘在 92%，正好落在被裁的那块，
+ * 玩家看不见托盘就没法接（2026-10-26 实机反馈）。
+ *
+ * 改成以可视高度为基准**等比**缩小：宽高共用同一个缩放比，两个小游戏的坐标全是百分比，
+ * 缩容器不影响判定逻辑与手感。
+ *
+ * 416 = 弹窗 `sm:max-w-md`(448) 减去左右 padding(32)，也就是 PC 上游戏区原本的宽度。
+ */
+const GAME_DESIGN_W = 416;
+const GAME_DESIGN_H = 320;
+const GAME_ASPECT = GAME_DESIGN_W / GAME_DESIGN_H;
+/** 弹窗外框占用：外边距 32 + padding 32 = 64（横向），上下 padding 32 + 标题/说明约 72 + 栅格间距 12（纵向）。 */
+const DIALOG_CHROME_W = 64;
+const DIALOG_CHROME_H = 116;
+
+function computeGameBox() {
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    const vw = window.visualViewport?.width ?? window.innerWidth;
+    const availH = vh - DIALOG_CHROME_H;
+    const availW = Math.min(GAME_DESIGN_W, vw - DIALOG_CHROME_W);
+    const height = Math.max(120, Math.round(Math.min(GAME_DESIGN_H, availH, availW / GAME_ASPECT)));
+    return { w: Math.round(height * GAME_ASPECT), h: height };
+}
+
+/** 只在游戏局内跟踪视口变化：转屏、软键盘、分屏都会改可视高度。 */
+function useGameBox(active: boolean) {
+    const [box, setBox] = useState(computeGameBox);
+
+    useEffect(() => {
+        if (!active) return;
+        const calc = () => setBox(computeGameBox());
+        calc();
+        window.addEventListener("resize", calc);
+        window.addEventListener("orientationchange", calc);
+        window.visualViewport?.addEventListener("resize", calc);
+        return () => {
+            window.removeEventListener("resize", calc);
+            window.removeEventListener("orientationchange", calc);
+            window.visualViewport?.removeEventListener("resize", calc);
+        };
+    }, [active]);
+
+    return box;
+}
+
+/**
  * 「番外词 / 隐藏词」弹窗（2026-10-17 用户定稿）。
  *
  * 流程：看累积进度 → 点【开始】进小游戏 → 分数**过线**（严格大于）→ 按顺序解锁下一段
@@ -32,6 +81,7 @@ export function TipUnlockDialog({ kind, onClose }: { kind: TipKind; onClose: () 
     const [passes, setPasses] = useState(0);
     const [mode, setMode] = useState<"list" | "playing" | "result">("list");
     const [last, setLast] = useState<{ score: number; passed: boolean } | null>(null);
+    const gameBox = useGameBox(mode === "playing");
 
     // 打开时读一次该存档的通关次数（累积进度跟存档走，不是全局进度）
     useEffect(() => {
@@ -73,7 +123,14 @@ export function TipUnlockDialog({ kind, onClose }: { kind: TipKind; onClose: () 
                 if (!next) onClose();
             }}
         >
-            <DialogContent className="sm:max-w-md">
+            <DialogContent
+                className={
+                    mode === "playing"
+                        ? // 横屏实机的 85vh 会把游戏区挤进滚动条，局内放开高度上限、禁止滚动
+                          "max-h-[100dvh] overflow-hidden sm:max-w-md"
+                        : "sm:max-w-md"
+                }
+            >
                 <DialogHeader>
                     <DialogTitle>{kind === "extra" ? "番外剧情触发词" : "隐藏剧情触发词"}</DialogTitle>
                     <DialogDescription>
@@ -121,7 +178,10 @@ export function TipUnlockDialog({ kind, onClose }: { kind: TipKind; onClose: () 
                 )}
 
                 {mode === "playing" && (
-                    <div className="h-[320px] w-full overflow-hidden rounded-lg bg-slate-950">
+                    <div
+                        className="mx-auto overflow-hidden rounded-lg bg-slate-950"
+                        style={{ width: gameBox.w, height: gameBox.h }}
+                    >
                         {kind === "extra" ? (
                             <BubblePopGame target={target} onFinish={handleFinish} />
                         ) : (
