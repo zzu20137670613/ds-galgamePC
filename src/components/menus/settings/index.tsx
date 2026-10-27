@@ -1,4 +1,5 @@
 import { About } from "@/components/menus/settings/about";
+import { BirthdaySettings } from "@/components/menus/settings/birthday-settings";
 import { DialoguesControls } from "@/components/menus/settings/dialogues-controls";
 import { ControlsListSettingsPage } from "@/components/menus/settings/menus/controls";
 import { DiagnosticsSettingsPage } from "@/components/menus/settings/menus/diagnostics";
@@ -157,6 +158,15 @@ export function Settings() {
                                     {t("system")}
                                 </h3>
                                 <SystemControls />
+                            </div>
+
+                            <Separator />
+
+                            <div>
+                                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {t("birthday", { defaultValue: "生日" })}
+                                </h3>
+                                <BirthdaySettings />
                             </div>
 
                             <Separator />

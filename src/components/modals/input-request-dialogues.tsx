@@ -1,5 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
     InputGroup,
@@ -10,6 +16,7 @@ import {
 import { useGameProps } from "@/lib/hooks/props-hooks";
 import { useQueryDialogue, useQueryInputValue } from "@/lib/query/narration-query";
 import { rollRandomName, SetupStore } from "@/lib/stores/setup-store";
+import { daysInBirthdayMonth, formatBirthday, parseBirthday } from "@/lib/birthday";
 import { storyModeLabel } from "@/content/labels/story-mode.label";
 import { TextDisplaySettings } from "@/lib/stores/text-display-settings-store";
 import { Game, narration } from "@drincs/pixi-vn";
@@ -38,6 +45,9 @@ export function InputRequestDialog() {
     const [whaleName, setWhaleName] = useState(SetupStore.store.state.whaleName || "鲸鲸");
     const [apiKey, setApiKey] = useState(SetupStore.store.state.apiKey);
     const [modelName, setModelName] = useState(SetupStore.store.state.modelName || "deepseek-chat");
+    /** 生日两段（"MM" / "DD" 字符串，空 = 没填）；提交时拼成 "MM-DD" */
+    const [birthdayMonth, setBirthdayMonth] = useState("");
+    const [birthdayDay, setBirthdayDay] = useState("");
     const isSetupForm = formMode === "setup";
 
     useEffect(() => {
@@ -47,10 +57,13 @@ export function InputRequestDialog() {
     useEffect(() => {
         if (isSetupForm) {
             const state = SetupStore.store.state;
+            const parsedBirthday = parseBirthday(state.birthday);
             setPlayerName(state.playerName);
             setWhaleName(state.whaleName || "鲸鲸");
             setApiKey(state.apiKey);
             setModelName(state.modelName || "deepseek-chat");
+            setBirthdayMonth(parsedBirthday ? String(parsedBirthday.month) : "");
+            setBirthdayDay(parsedBirthday ? String(parsedBirthday.day) : "");
         }
     }, [isSetupForm]);
 
@@ -71,12 +84,31 @@ export function InputRequestDialog() {
         if (!canConfirmSetup) {
             return;
         }
-        SetupStore.commit({ playerName, whaleName, apiKey, modelName });
+        SetupStore.commit({
+            playerName,
+            whaleName,
+            apiKey,
+            modelName,
+            // 月、日都选了才算填了生日；只选一个视为没填（避免出现"7 月 0 日"这种半截数据）
+            birthday:
+                birthdayMonth && birthdayDay
+                    ? formatBirthday(Number(birthdayMonth), Number(birthdayDay))
+                    : "",
+        });
         SetupStore.closeSetupForm();
         narration.inputValue = playerName.trim() || "旅人";
         setTempValue(undefined);
         gameProps.invalidateInterfaceData();
-    }, [canConfirmSetup, playerName, whaleName, apiKey, modelName, gameProps]);
+    }, [
+        canConfirmSetup,
+        playerName,
+        whaleName,
+        apiKey,
+        modelName,
+        birthdayMonth,
+        birthdayDay,
+        gameProps,
+    ]);
 
     const handleRoll = useCallback(() => {
         setPlayerName(rollRandomName());
@@ -158,7 +190,8 @@ export function InputRequestDialog() {
                             <label className="flex flex-col gap-1.5">
                                 <span className="text-sm text-muted-foreground">
                                     {t("setup_model_name", {
-                                        defaultValue: "模型名（不填默认 deepseek-chat，支持所有 DS 模型）",
+                                        defaultValue:
+                                            "模型名（不填默认 deepseek-chat，支持所有 DS 模型）",
                                     })}
                                 </span>
                                 <Input
@@ -166,6 +199,74 @@ export function InputRequestDialog() {
                                     placeholder="deepseek-chat"
                                     onChange={(e) => setModelName(e.target.value)}
                                 />
+                            </label>
+                            {/* 生日：选填，只存月日（不收集年份），见 lib/birthday.ts */}
+                            <label className="flex flex-col gap-1.5">
+                                <span className="text-sm text-muted-foreground">
+                                    {t("setup_birthday", {
+                                        defaultValue:
+                                            "你的生日？（选填，那天会有一小段只属于你的剧情）",
+                                    })}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        aria-label={t("setup_birthday_month", {
+                                            defaultValue: "出生月份",
+                                        })}
+                                        className="h-8 flex-1 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                                        value={birthdayMonth}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            setBirthdayMonth(value);
+                                            // 换月份时把超出的天数收回来（比如 1/31 切到 2 月）
+                                            if (
+                                                value &&
+                                                birthdayDay &&
+                                                Number(birthdayDay) >
+                                                    daysInBirthdayMonth(Number(value))
+                                            ) {
+                                                setBirthdayDay(
+                                                    String(daysInBirthdayMonth(Number(value))),
+                                                );
+                                            }
+                                        }}
+                                    >
+                                        <option value="">不填</option>
+                                        {Array.from({ length: 12 }, (_, index) => index + 1).map(
+                                            (month) => (
+                                                <option key={month} value={String(month)}>
+                                                    {month} 月
+                                                </option>
+                                            ),
+                                        )}
+                                    </select>
+                                    <select
+                                        aria-label={t("setup_birthday_day", {
+                                            defaultValue: "出生日期",
+                                        })}
+                                        className="h-8 flex-1 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
+                                        value={birthdayDay}
+                                        disabled={!birthdayMonth}
+                                        onChange={(e) => setBirthdayDay(e.target.value)}
+                                    >
+                                        <option value="">日</option>
+                                        {Array.from(
+                                            {
+                                                length: daysInBirthdayMonth(
+                                                    birthdayMonth ? Number(birthdayMonth) : 1,
+                                                ),
+                                            },
+                                            (_, index) => index + 1,
+                                        ).map((day) => (
+                                            <option key={day} value={String(day)}>
+                                                {day} 日
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                    只存在这台设备上，不会上传，也不会问年份。
+                                </span>
                             </label>
                         </form>
                         <DialogFooter>

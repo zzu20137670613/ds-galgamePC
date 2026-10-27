@@ -1,4 +1,5 @@
 import generatedManifestJson from "@/assets/manifest.gen.json";
+import { BIRTHDAY_BACKGROUND_SRC } from "@/lib/birthday";
 import { startLabel } from "@/content/labels/start.label";
 import type { FileRouteTypes } from "@/routeTree.gen";
 import type { AssetsManifest } from "@drincs/pixi-vn";
@@ -305,6 +306,20 @@ export const manifest: AssetsManifest = {
                     alias: "bg-story-mode",
                     src: "/场景/剧情模式_湖上亭台.jpg",
                 },
+            ],
+        },
+        // 生日剧情（2026-10-26）：没有触发词，靠日期进入，每年一次（见 lib/birthday.ts）
+        // 六张连续 CG（2026-10-27 用户供图，按分幕顺序）：哈基米×Grok → GPT×Claude →
+        // Kimi×文心 → GLM×千问 → SEED×鲸鱼娘 → 全家福（同时兼聊天页生日背景）
+        {
+            name: "extra-birthday",
+            assets: [
+                { alias: "cg-bd-1", src: "/场景/生日1_Gemini_Grok.png" },
+                { alias: "cg-bd-2", src: "/场景/生日2_GPT_Claude.jpg" },
+                { alias: "cg-bd-3", src: "/场景/生日3_Kimi_文心.jpg" },
+                { alias: "cg-bd-4", src: "/场景/生日4_GLM_千问.jpg" },
+                { alias: "cg-bd-5", src: "/场景/生日5_SEED_鲸鱼娘.jpg" },
+                { alias: "cg-bd-6", src: BIRTHDAY_BACKGROUND_SRC },
             ],
         },
     ],

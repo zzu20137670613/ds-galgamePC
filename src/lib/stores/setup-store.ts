@@ -4,6 +4,8 @@ const LS_PLAYER_NAME = "gal_player_name";
 const LS_WHALE_NAME = "gal_whale_name";
 const LS_API_KEY = "gal_api_key";
 const LS_MODEL_NAME = "gal_model_name";
+/** 生日：只存 "MM-DD"（不存年份）；空串 = 没填。逻辑见 lib/birthday.ts */
+const LS_BIRTHDAY = "gal_birthday";
 
 /**
  * 默认模型：deepseek-flash（即 V4.1 Flash，自带识图）。
@@ -33,6 +35,10 @@ export type SetupState = {
      */
     modelName: string;
     /**
+     * 生日："MM-DD"，空串 = 没填。只存月日，不收集年份（见 lib/birthday.ts）
+     */
+    birthday: string;
+    /**
      * 是否已完成开场设定（用于 onEnd 判断跳转：进聊天界面而不是回主菜单）
      */
     onboardingDone: boolean;
@@ -42,10 +48,19 @@ export type SetupState = {
     formMode: "idle" | "setup";
 };
 
-function readStored(): Pick<SetupState, "playerName" | "whaleName" | "apiKey" | "modelName"> {
+function readStored(): Pick<
+    SetupState,
+    "playerName" | "whaleName" | "apiKey" | "modelName" | "birthday"
+> {
     // SSR（Vite 插件评估 content 模块时）没有 localStorage，返回空值回退
     if (typeof localStorage === "undefined") {
-        return { playerName: "", whaleName: "鲸鲸", apiKey: "", modelName: DEFAULT_MODEL_NAME };
+        return {
+            playerName: "",
+            whaleName: "鲸鲸",
+            apiKey: "",
+            modelName: DEFAULT_MODEL_NAME,
+            birthday: "",
+        };
     }
     const storedModel = localStorage.getItem(LS_MODEL_NAME) ?? "";
     return {
@@ -54,13 +69,14 @@ function readStored(): Pick<SetupState, "playerName" | "whaleName" | "apiKey" | 
         apiKey: localStorage.getItem(LS_API_KEY) ?? "",
         // 空值或历史遗留值都视为"未自定义"，跟随新默认模型
         modelName:
-            storedModel && !LEGACY_MODEL_NAMES.has(storedModel)
-                ? storedModel
-                : DEFAULT_MODEL_NAME,
+            storedModel && !LEGACY_MODEL_NAMES.has(storedModel) ? storedModel : DEFAULT_MODEL_NAME,
+        birthday: localStorage.getItem(LS_BIRTHDAY) ?? "",
     };
 }
 
-function writeStored(state: Pick<SetupState, "playerName" | "whaleName" | "apiKey" | "modelName">) {
+function writeStored(
+    state: Pick<SetupState, "playerName" | "whaleName" | "apiKey" | "modelName" | "birthday">,
+) {
     if (typeof localStorage === "undefined") {
         return;
     }
@@ -68,6 +84,7 @@ function writeStored(state: Pick<SetupState, "playerName" | "whaleName" | "apiKe
     localStorage.setItem(LS_WHALE_NAME, state.whaleName);
     localStorage.setItem(LS_API_KEY, state.apiKey);
     localStorage.setItem(LS_MODEL_NAME, state.modelName);
+    localStorage.setItem(LS_BIRTHDAY, state.birthday);
 }
 
 export namespace SetupStore {
@@ -105,17 +122,26 @@ export namespace SetupStore {
         writeStored(store.state);
     }
 
+    /** 设置/清空生日（"MM-DD"，传空串 = 清空） */
+    export function setBirthday(value: string) {
+        store.setState((state) => ({ ...state, birthday: value }));
+        writeStored(store.state);
+    }
+
     export function commit(values: {
         playerName: string;
         whaleName: string;
         apiKey: string;
         modelName: string;
+        /** 生日可不填：不传则保留原值 */
+        birthday?: string;
     }) {
         const next = {
             playerName: values.playerName.trim() || "旅人",
             whaleName: values.whaleName.trim() || "鲸鲸",
             apiKey: values.apiKey.trim(),
             modelName: values.modelName.trim() || DEFAULT_MODEL_NAME,
+            birthday: values.birthday === undefined ? store.state.birthday : values.birthday,
             onboardingDone: true,
             formMode: "idle" as const,
         };

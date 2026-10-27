@@ -1,4 +1,9 @@
-import { contextArchive, memoryArchive, type ChatMessage, type SavedMemory } from "@/lib/archive/context-archive";
+import {
+    contextArchive,
+    memoryArchive,
+    type ChatMessage,
+    type SavedMemory,
+} from "@/lib/archive/context-archive";
 import { chatCompletion, IMAGE_PLACEHOLDER } from "@/lib/api/chat-api";
 import { matchMaterials, MATERIAL_INDEX, type MaterialEntry } from "@/lib/materials/material-index";
 import { clearCurrentBackground } from "@/lib/utils/assets-utility";
@@ -12,6 +17,17 @@ import {
     setHiddenProgress,
 } from "@/lib/archive/hidden-progress";
 import { matchExtraStory } from "@/lib/archive/extra-stories";
+import {
+    BIRTHDAY_BACKGROUND_SRC,
+    BIRTHDAY_LABEL_ID,
+    buildBirthdayGreetHint,
+    DEFAULT_CHAT_BACKGROUND,
+    isBirthdayToday,
+    markBirthdayGreeted,
+    markBirthdayStoryShown,
+    shouldGreetBirthday,
+    shouldTriggerBirthdayStory,
+} from "@/lib/birthday";
 import { storyModeLabel } from "@/content/labels/story-mode.label";
 import { SetupStore } from "@/lib/stores/setup-store";
 import { SkipSettings } from "@/lib/stores/skip-settings-store";
@@ -26,17 +42,36 @@ import type { TipKind } from "@/lib/tips/tip-unlocks";
 import { buildGenesisLore } from "@/lib/archive/genesis-lore";
 import { Game } from "@drincs/pixi-vn";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-    LAST_SAVE_USE_QUERY_KEY,
-    SAVES_USE_QUERY_KEY,
-} from "@/lib/query/save-query";
+import { LAST_SAVE_USE_QUERY_KEY, SAVES_USE_QUERY_KEY } from "@/lib/query/save-query";
 import { quickSaveGameToIndexDB, getSaveSlotLabel } from "@/lib/utils/save-utility";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Home, Save, ShieldCheck, LibraryBig, DoorOpen, Clapperboard, Archive, ImagePlus, X, Gift, KeyRound } from "lucide-react";
-import { estimateMessagesTokens, MEMORY_TRIGGER_LIMIT, SEAL_REMINDER_LIMIT } from "@/lib/utils/token-estimate";
+import {
+    Send,
+    Home,
+    Save,
+    ShieldCheck,
+    LibraryBig,
+    DoorOpen,
+    Clapperboard,
+    Archive,
+    ImagePlus,
+    X,
+    Gift,
+    KeyRound,
+} from "lucide-react";
+import {
+    estimateMessagesTokens,
+    MEMORY_TRIGGER_LIMIT,
+    SEAL_REMINDER_LIMIT,
+} from "@/lib/utils/token-estimate";
 import { requestFinaleJudgment, FINALE_ENDING } from "@/lib/archive/finale";
-import { filterDailyMessages, runCompression, saveSealToDB, saveRawSealToDB } from "@/lib/archive/compress";
+import {
+    filterDailyMessages,
+    runCompression,
+    saveSealToDB,
+    saveRawSealToDB,
+} from "@/lib/archive/compress";
 import { reviewMemoryViaAPI, reviewSealDocumentViaAPI } from "@/lib/ai-review";
 import type { LabelIdType } from "@drincs/pixi-vn/narration";
 
@@ -95,7 +130,12 @@ export function ChatScreen() {
     const whaleName = SetupStore.store.state.whaleName || "鲸鲸";
 
     // ── 素材槽位状态：背景 / 立绘 / 贴纸 ──
-    const [background, setBackground] = useState<string | null>("/背景/海滩假日_鲸鱼娘.png");
+    const [background, setBackground] = useState<string | null>(() =>
+        // 生日当天默认换成生日背景；命中关键词照常覆盖，下次再进聊天页又回到生日背景
+        isBirthdayToday(SetupStore.store.state.birthday)
+            ? BIRTHDAY_BACKGROUND_SRC
+            : DEFAULT_CHAT_BACKGROUND,
+    );
     const [character, setCharacter] = useState<MaterialEntry | null>(null);
     const [charRatio, setCharRatio] = useState<number | null>(null);
     const [sticker, setSticker] = useState<MaterialEntry | null>(null);
@@ -208,6 +248,32 @@ export function ChatScreen() {
             window.removeEventListener("gal:archive-changed", handleArchiveChanged);
         };
     }, []);
+
+    /**
+     * 生日剧情自动触发（2026-10-26 用户定稿）：每次进聊天页判定一次。
+     *  - 只有「今天 == 生日」且今年还没放过时才放；
+     *  - 记账放在进场**之前**，演出途中刷新页面也不会重复触发；
+     *  - 演出走和番外同一套（全屏 narration + 结束回聊天页），不写聊天记录、不发 API。
+     */
+    const birthdayCheckedRef = useRef(false);
+    useEffect(() => {
+        if (!loaded || birthdayCheckedRef.current) return;
+        const setup = SetupStore.store.state;
+        // 开场设定弹框正开着时不抢它；没填生日时 shouldTrigger 自己会返回 false。
+        // 注意别判 onboardingDone —— 那个字段不落盘，重启后是 false，会把判定全挡掉。
+        if (setup.formMode === "setup") return;
+        birthdayCheckedRef.current = true;
+        if (!shouldTriggerBirthdayStory()) return;
+        markBirthdayStoryShown();
+        void (async () => {
+            setActiveHiddenLabel(BIRTHDAY_LABEL_ID);
+            setActiveHiddenSeqFromLabel(BIRTHDAY_LABEL_ID);
+            SkipSettings.setEnabled(false);
+            await gameProps.navigate({ to: "/game/narration" });
+            await Game.start(BIRTHDAY_LABEL_ID as LabelIdType, gameProps);
+            gameProps.invalidateInterfaceData();
+        })();
+    }, [loaded, gameProps]);
 
     useEffect(() => {
         // 组件卸载时清理贴纸定时器 + 立绘序列定时器 + 中断进行中的封卷
@@ -535,7 +601,16 @@ export function ChatScreen() {
                 };
                 setMessages((prev) => [...prev, sealNotice]);
             }
-            const chatResult = await chatCompletion(all, { memories, images: attachedImages });
+            // 生日当天的第一句话：把"今天是生日"的提示只拼进本次 system（不写存档）
+            const birthdayGreet = shouldGreetBirthday();
+            const chatResult = await chatCompletion(all, {
+                memories,
+                images: attachedImages,
+                birthdayHint: birthdayGreet
+                    ? buildBirthdayGreetHint(SetupStore.store.state.playerName, whaleName)
+                    : undefined,
+            });
+            if (birthdayGreet) markBirthdayGreeted();
             const reply: ChatMessage = {
                 role: "assistant",
                 content: chatResult.content,
@@ -652,15 +727,15 @@ export function ChatScreen() {
                 }
 
                 if (result.needsReview) {
-                    toast.warning(`封卷完成，但部分场景需要人工审核（共 ${entry.sceneCount} 个场景）`);
+                    toast.warning(
+                        `封卷完成，但部分场景需要人工审核（共 ${entry.sceneCount} 个场景）`,
+                    );
                 } else {
                     toast.success(`封卷完成！已生成 ${entry.sceneCount} 个场景的缩略剧本。`);
                 }
             } else if (result.raw) {
                 const rawEntry = await saveRawSealToDB(result.raw);
-                toast.warning(
-                    `封卷结果结构异常，原始数据已保存为 ${rawEntry.file}，可稍后重试。`,
-                );
+                toast.warning(`封卷结果结构异常，原始数据已保存为 ${rawEntry.file}，可稍后重试。`);
             }
         } catch (e) {
             const isAbort = e instanceof DOMException && e.name === "AbortError";
@@ -679,9 +754,13 @@ export function ChatScreen() {
 
     return (
         <div className="pointer-events-auto relative flex h-full w-full flex-col overflow-hidden">
-            {/* 背景槽位：命中触发词即切换 */}
+            {/* 背景槽位：命中触发词即切换。
+                普通背景压到 40%（画布底色 #303030，淡一点不抢正文）；
+                生日全家福是夜景，40% 会糊成一片灰，单独放亮到 90%。 */}
             <div
-                className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-40 transition-all duration-700"
+                className={`pointer-events-none absolute inset-0 bg-cover bg-center transition-all duration-700 ${
+                    background === BIRTHDAY_BACKGROUND_SRC ? "opacity-90" : "opacity-40"
+                }`}
                 style={{ backgroundImage: background ? `url(${background})` : undefined }}
             />
 
@@ -715,7 +794,9 @@ export function ChatScreen() {
             <header className="relative z-20 flex items-center justify-between px-4 py-3 backdrop-blur-sm bg-background/40">
                 <div className="flex items-center gap-2">
                     <span className="size-3 rounded-full bg-sky-400" />
-                    <span className="font-semibold">{t("chat_title", { defaultValue: "未至之境" })}</span>
+                    <span className="font-semibold">
+                        {t("chat_title", { defaultValue: "未至之境" })}
+                    </span>
                     <span className="text-sm text-muted-foreground">
                         {t("chat_with", { defaultValue: `与 ${whaleName} 对话` })}
                     </span>
@@ -869,76 +950,77 @@ export function ChatScreen() {
                             showBanner ? "" : "max-w-3xl"
                         }`}
                     >
-                {!loaded && (
-                    <div className="mx-auto text-sm text-muted-foreground">
-                        {t("chat_loading", { defaultValue: "正在回到上一次的湖边……" })}
-                    </div>
-                )}
-                {loaded && messages.length === 0 && (
-                    <div className="mx-auto text-sm text-muted-foreground">
-                        {t("chat_empty", { defaultValue: "还没有对话记录，对鲸鱼娘说点什么吧。" })}
-                    </div>
-                )}
-                {messages.map((m, i) => {
-                    const isUser = m.role === "user";
-                    return (
-                        <div
-                            key={`${m.ts}-${i}`}
-                            className={`flex gap-2 ${isUser ? "justify-end" : "justify-start"}`}
-                        >
-                            {!isUser && sticker === null && (
-                                <div className="mt-1 text-xs text-muted-foreground select-none">
-                                    🐋
+                        {!loaded && (
+                            <div className="mx-auto text-sm text-muted-foreground">
+                                {t("chat_loading", { defaultValue: "正在回到上一次的湖边……" })}
+                            </div>
+                        )}
+                        {loaded && messages.length === 0 && (
+                            <div className="mx-auto text-sm text-muted-foreground">
+                                {t("chat_empty", {
+                                    defaultValue: "还没有对话记录，对鲸鱼娘说点什么吧。",
+                                })}
+                            </div>
+                        )}
+                        {messages.map((m, i) => {
+                            const isUser = m.role === "user";
+                            return (
+                                <div
+                                    key={`${m.ts}-${i}`}
+                                    className={`flex gap-2 ${isUser ? "justify-end" : "justify-start"}`}
+                                >
+                                    {!isUser && sticker === null && (
+                                        <div className="mt-1 text-xs text-muted-foreground select-none">
+                                            🐋
+                                        </div>
+                                    )}
+                                    <div
+                                        className={`max-w-[80%] rounded-2xl px-4 py-2 whitespace-pre-wrap ${
+                                            isUser
+                                                ? "bg-sky-600 text-white rounded-br-sm"
+                                                : "bg-background/80 backdrop-blur rounded-bl-sm border"
+                                        }`}
+                                    >
+                                        {!isUser && (
+                                            <div className="mb-0.5 text-xs text-sky-500 font-medium">
+                                                {m.character || whaleName}
+                                            </div>
+                                        )}
+                                        {m.content}
+                                    </div>
                                 </div>
-                            )}
+                            );
+                        })}
+                        {sending && (
+                            <div className="flex justify-start">
+                                <div className="max-w-[80%] rounded-2xl rounded-bl-sm border bg-background/80 px-4 py-2 text-sm text-muted-foreground backdrop-blur">
+                                    正在想着怎么回答你……
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 记忆卡片：想记住的事写在这里，保存后随每次对话一起带着 */}
+                        {memories.length > 0 || memoryNoticeShown ? (
+                            <MemoryCard memories={memories} onSave={saveMemory} />
+                        ) : null}
+
+                        {/* 表情贴纸槽位：最后一次命中后短暂展示，5 秒后渐隐淡出 */}
+                        {sticker && (
                             <div
-                                className={`max-w-[80%] rounded-2xl px-4 py-2 whitespace-pre-wrap ${
-                                    isUser
-                                        ? "bg-sky-600 text-white rounded-br-sm"
-                                        : "bg-background/80 backdrop-blur rounded-bl-sm border"
+                                key={stickerTs}
+                                className={`pointer-events-none flex justify-start transition-opacity duration-300 ${
+                                    stickerFading
+                                        ? "opacity-0"
+                                        : "animate-in fade-in slide-in-from-bottom-2 duration-300"
                                 }`}
                             >
-                                {!isUser && (
-                                    <div className="mb-0.5 text-xs text-sky-500 font-medium">
-                                        {m.character || whaleName}
-                                    </div>
-                                )}
-                                {m.content}
+                                <img
+                                    src={sticker.src}
+                                    alt="表情贴纸"
+                                    className="w-36 rounded-xl shadow-lg"
+                                />
                             </div>
-                        </div>
-                    );
-                })}
-                {sending && (
-                    <div className="flex justify-start">
-                        <div className="max-w-[80%] rounded-2xl rounded-bl-sm border bg-background/80 px-4 py-2 text-sm text-muted-foreground backdrop-blur">
-                            正在想着怎么回答你……
-                        </div>
-                    </div>
-                )}
-
-                {/* 记忆卡片：想记住的事写在这里，保存后随每次对话一起带着 */}
-                {memories.length > 0 || memoryNoticeShown ? (
-                    <MemoryCard
-                        memories={memories}
-                        onSave={saveMemory}
-                    />
-                ) : null}
-
-                {/* 表情贴纸槽位：最后一次命中后短暂展示，5 秒后渐隐淡出 */}
-                {sticker && (
-                    <div
-                        key={stickerTs}
-                        className={`pointer-events-none flex justify-start transition-opacity duration-300 ${
-                            stickerFading ? "opacity-0" : "animate-in fade-in slide-in-from-bottom-2 duration-300"
-                        }`}
-                    >
-                        <img
-                            src={sticker.src}
-                            alt="表情贴纸"
-                            className="w-36 rounded-xl shadow-lg"
-                        />
-                    </div>
-                )}
+                        )}
                     </div>
                 </div>
             </div>
@@ -959,7 +1041,9 @@ export function ChatScreen() {
                                     type="button"
                                     aria-label="移除这张图片"
                                     className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-black/70 text-white"
-                                    onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
+                                    onClick={() =>
+                                        setImages((prev) => prev.filter((_, idx) => idx !== i))
+                                    }
                                 >
                                     <X className="size-3" />
                                 </button>
@@ -990,9 +1074,13 @@ export function ChatScreen() {
                     </Button>
                     <Input
                         value={input}
-                        placeholder={reading ? "正在处理图片……" : t("chat_input_placeholder", {
-                            defaultValue: `想和 ${whaleName} 说点什么……`,
-                        })}
+                        placeholder={
+                            reading
+                                ? "正在处理图片……"
+                                : t("chat_input_placeholder", {
+                                      defaultValue: `想和 ${whaleName} 说点什么……`,
+                                  })
+                        }
                         disabled={sending}
                         onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
@@ -1002,7 +1090,10 @@ export function ChatScreen() {
                         }}
                         onChange={(e) => setInput(e.target.value)}
                     />
-                    <Button onClick={handleSend} disabled={sending || (!input.trim() && images.length === 0)}>
+                    <Button
+                        onClick={handleSend}
+                        disabled={sending || (!input.trim() && images.length === 0)}
+                    >
                         <Send className="size-4" />
                         {t("chat_send", { defaultValue: "发送" })}
                     </Button>
@@ -1092,12 +1183,7 @@ function MemoryCard({
                     onChange={(e) => setNote(e.target.value)}
                     className="border-sky-200 bg-white/80 text-xs"
                 />
-                <Button
-                    size="sm"
-                    onClick={handleSave}
-                    disabled={!draft.trim()}
-                    className="w-full"
-                >
+                <Button size="sm" onClick={handleSave} disabled={!draft.trim()} className="w-full">
                     <ShieldCheck className="size-4" />
                     {t("memory_save_btn", { defaultValue: "收进记忆盒子" })}
                 </Button>

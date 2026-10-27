@@ -25,6 +25,11 @@ export type ChatApiOptions = {
      * 图片**不写入对话存档**（存档里只留 "[图片]" 占位），仅随本次请求发送。
      */
     images?: string[];
+    /**
+     * 只拼进本次请求 system 的临时提示（不写存档）。
+     * 目前用于生日当天的第一次回复：让她主动说一句生日快乐（见 lib/birthday.ts）。
+     */
+    birthdayHint?: string;
 };
 
 type ChatMessageRole = "user" | "assistant" | "system";
@@ -187,8 +192,18 @@ export async function sendCompletionRequest(
         stream: false,
     } satisfies ChatCompletionRequest & { stream: boolean };
 
-    const whaleAPI = (globalThis as { whaleAPI?: { chat: (p: unknown) => Promise<{ ok: boolean; data?: ChatCompletionResponse; error?: string; status?: number }> } })
-        .whaleAPI;
+    const whaleAPI = (
+        globalThis as {
+            whaleAPI?: {
+                chat: (p: unknown) => Promise<{
+                    ok: boolean;
+                    data?: ChatCompletionResponse;
+                    error?: string;
+                    status?: number;
+                }>;
+            };
+        }
+    ).whaleAPI;
     if (whaleAPI) {
         const result = await whaleAPI.chat({ ...payload, apiKey });
         if (!result.ok || result.data?.error) {
@@ -233,15 +248,17 @@ export async function sendCompletionRequest(
         throw new Error("模型没有返回内容");
     }
 
-    const u = data.usage
+    const u = data.usage;
     return {
         content: content.trim(),
-        usage: u ? {
-            promptTokens: u.prompt_tokens ?? 0,
-            completionTokens: u.completion_tokens ?? 0,
-            cacheHitTokens: u.prompt_cache_hit_tokens ?? 0,
-        } : undefined,
-    }
+        usage: u
+            ? {
+                  promptTokens: u.prompt_tokens ?? 0,
+                  completionTokens: u.completion_tokens ?? 0,
+                  cacheHitTokens: u.prompt_cache_hit_tokens ?? 0,
+              }
+            : undefined,
+    };
 }
 
 /**
@@ -264,7 +281,8 @@ export async function chatCompletion(
             content:
                 buildSystemPrompt(whaleName, playerName) +
                 buildMemoriesSection(options.memories) +
-                buildColdStartMemo(context.length),
+                buildColdStartMemo(context.length) +
+                (options.birthdayHint ? `\n\n${options.birthdayHint}` : ""),
         },
         ...context.map((m) => ({
             role: m.role === "system" ? ("system" as const) : (m.role as "user" | "assistant"),

@@ -17,9 +17,10 @@ import { narration } from "@drincs/pixi-vn";
 
 /**
  * 背景偏暗的番外：正文强制亮色，避免黑字看不清。
- * 《一夜鱼龙舞》（灯会夜景）与《白米饭》（废墟/雨夜/夜门外/书房，四张都压得暗）。
+ * 《一夜鱼龙舞》（灯会夜景）、《白米饭》（废墟/雨夜/夜门外/书房，四张都压得暗）、
+ * 《生日》（六张生日 CG 全是夜里的海/房间）。
  */
-const LIGHT_TEXT_LABELS = new Set(["extra-yulongwu", "extra-baifan"]);
+const LIGHT_TEXT_LABELS = new Set(["extra-yulongwu", "extra-baifan", "extra-birthday"]);
 
 export function NarrationCards() {
     const { data: { character } = {} } = useQueryDialogue();
