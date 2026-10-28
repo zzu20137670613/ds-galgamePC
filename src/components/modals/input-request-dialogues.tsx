@@ -78,7 +78,8 @@ export function InputRequestDialog() {
         gameProps.invalidateInterfaceData();
     }, [canConfirm, currentValue, gameProps, tempValue]);
 
-    const canConfirmSetup = whaleName.trim() !== "" && apiKey.trim() !== "";
+    const canConfirmSetup =
+        whaleName.trim() !== "" && apiKey.trim() !== "" && birthdayMonth !== "" && birthdayDay !== "";
 
     const submitSetupForm = useCallback(() => {
         if (!canConfirmSetup) {
@@ -174,39 +175,10 @@ export function InputRequestDialog() {
                                     onChange={(e) => setWhaleName(e.target.value)}
                                 />
                             </label>
-                            <label className="flex flex-col gap-1.5">
+                            {/* 生日：必填，只存月日（不收集年份），见 lib/birthday.ts */}
+                            <div className="flex flex-col gap-1.5">
                                 <span className="text-sm text-muted-foreground">
-                                    {t("setup_api_key", {
-                                        defaultValue: "API Key（必填，后续用于世界实时演化）",
-                                    })}
-                                </span>
-                                <Input
-                                    type="password"
-                                    value={apiKey}
-                                    placeholder="sk-..."
-                                    onChange={(e) => setApiKey(e.target.value)}
-                                />
-                            </label>
-                            <label className="flex flex-col gap-1.5">
-                                <span className="text-sm text-muted-foreground">
-                                    {t("setup_model_name", {
-                                        defaultValue:
-                                            "模型名（不填默认 deepseek-chat，支持所有 DS 模型）",
-                                    })}
-                                </span>
-                                <Input
-                                    value={modelName}
-                                    placeholder="deepseek-chat"
-                                    onChange={(e) => setModelName(e.target.value)}
-                                />
-                            </label>
-                            {/* 生日：选填，只存月日（不收集年份），见 lib/birthday.ts */}
-                            <label className="flex flex-col gap-1.5">
-                                <span className="text-sm text-muted-foreground">
-                                    {t("setup_birthday", {
-                                        defaultValue:
-                                            "你的生日？（选填，那天会有一小段只属于你的剧情）",
-                                    })}
+                                    {t("setup_birthday", { defaultValue: "你的生日？" })}
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <select
@@ -231,7 +203,7 @@ export function InputRequestDialog() {
                                             }
                                         }}
                                     >
-                                        <option value="">不填</option>
+                                        <option value="">月</option>
                                         {Array.from({ length: 12 }, (_, index) => index + 1).map(
                                             (month) => (
                                                 <option key={month} value={String(month)}>
@@ -267,6 +239,32 @@ export function InputRequestDialog() {
                                 <span className="text-xs text-muted-foreground">
                                     只存在这台设备上，不会上传，也不会问年份。
                                 </span>
+                            </div>
+                            <label className="flex flex-col gap-1.5">
+                                <span className="text-sm text-muted-foreground">
+                                    {t("setup_api_key", {
+                                        defaultValue: "API Key（必填，后续用于世界实时演化）",
+                                    })}
+                                </span>
+                                <Input
+                                    type="password"
+                                    value={apiKey}
+                                    placeholder="sk-..."
+                                    onChange={(e) => setApiKey(e.target.value)}
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1.5">
+                                <span className="text-sm text-muted-foreground">
+                                    {t("setup_model_name", {
+                                        defaultValue:
+                                            "模型名（不填默认 deepseek-chat，支持所有 DS 模型）",
+                                    })}
+                                </span>
+                                <Input
+                                    value={modelName}
+                                    placeholder="deepseek-chat"
+                                    onChange={(e) => setModelName(e.target.value)}
+                                />
                             </label>
                         </form>
                         <DialogFooter>

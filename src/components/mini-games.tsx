@@ -398,7 +398,7 @@ export function CatchSnackGame({
         if (item.type === "bomb") {
             if (!caught) return; // 漏掉炸弹：不影响连击
             stats.score = Math.max(0, stats.score - SNACK_BOMB_PENALTY);
-            stats.combo = 0;
+            // 炸弹只扣分、不断连击：只有漏接点心 / 星星才断（接不接炸弹都断的话 666 根本打不到）
             glowAtRef.current = now;
             return;
         }
