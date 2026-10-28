@@ -32,7 +32,7 @@ const SNACK_BASKET_Y = 0.92; // 篮子纵向位置
 const SNACK_BASKET_WIDTH = 0.18; // 篮子宽度
 const SNACK_CATCH_TOLERANCE = SNACK_BASKET_WIDTH / 2 + 0.03; // 接住判定 0.12
 const SNACK_JUDGE_Y = SNACK_BASKET_Y - 0.05; // y >= 0.87 时触发一次判定
-const SNACK_COMBO_WINDOW = 1500; // 连击窗口
+const SNACK_COMBO_GRACE_MISSES = 5; // 连续漏 5 个点心 / 星星才断连击
 const SNACK_SCORE_SNACK = 10; // 点心基础分
 const SNACK_SCORE_STAR = 30; // 星星基础分
 const SNACK_BOMB_PENALTY = 20; // 炸弹：score = max(0, score - 20)
@@ -361,7 +361,7 @@ export function CatchSnackGame({
 
     const itemsRef = useRef<SnackItem[]>([]);
     const basketXRef = useRef(0.5);
-    const statsRef = useRef({ score: 0, combo: 0, comboAt: 0, comboMax: 0 });
+    const statsRef = useRef({ score: 0, combo: 0, missStreak: 0, comboMax: 0 });
     const startAtRef = useRef(0);
     const lastSpawnRef = useRef(0);
     const glowAtRef = useRef(0);
@@ -403,13 +403,16 @@ export function CatchSnackGame({
             return;
         }
         if (!caught) {
-            stats.combo = 0; // 漏掉点心 / 星星：连击清零
+            // 漏接不立刻清零：躲炸弹时一漏就是好几个，清零太狠（2026-10-28 实机反馈）。
+            // 连续漏满 5 个才算断了节奏，中间接住一个就重新计数。
+            stats.missStreak += 1;
+            if (stats.missStreak >= SNACK_COMBO_GRACE_MISSES) stats.combo = 0;
             return;
         }
-        stats.combo = now - stats.comboAt <= SNACK_COMBO_WINDOW && stats.combo > 0 ? stats.combo + 1 : 1;
+        stats.missStreak = 0;
+        stats.combo = stats.combo > 0 ? stats.combo + 1 : 1;
         const base = item.type === "star" ? SNACK_SCORE_STAR : SNACK_SCORE_SNACK;
         stats.score += base + Math.min(stats.combo, 10) * 2;
-        stats.comboAt = now;
         stats.comboMax = Math.max(stats.comboMax, stats.combo);
         glowAtRef.current = now;
     };
@@ -418,7 +421,7 @@ export function CatchSnackGame({
         const now = performance.now();
         itemsRef.current = [];
         basketXRef.current = 0.5;
-        statsRef.current = { score: 0, combo: 0, comboAt: 0, comboMax: 0 };
+        statsRef.current = { score: 0, combo: 0, missStreak: 0, comboMax: 0 };
         startAtRef.current = now;
         lastSpawnRef.current = now;
         glowAtRef.current = 0;
