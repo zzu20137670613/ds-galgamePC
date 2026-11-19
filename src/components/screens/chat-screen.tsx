@@ -1,0 +1,1211 @@
+import {
+    contextArchive,
+    memoryArchive,
+    type ChatMessage,
+    type SavedMemory,
+} from "@/lib/archive/context-archive";
+import { chatCompletion, IMAGE_PLACEHOLDER } from "@/lib/api/chat-api";
+import { matchMaterials, MATERIAL_INDEX, type MaterialEntry } from "@/lib/materials/material-index";
+import { clearCurrentBackground } from "@/lib/utils/assets-utility";
+import {
+    checkHiddenTrigger,
+    currentExploreAnchor,
+    getExploreCount,
+    getHiddenProgress,
+    setActiveHiddenLabel,
+    setActiveHiddenSeqFromLabel,
+    setHiddenProgress,
+} from "@/lib/archive/hidden-progress";
+import { matchExtraStory } from "@/lib/archive/extra-stories";
+import {
+    BIRTHDAY_BACKGROUND_SRC,
+    BIRTHDAY_LABEL_ID,
+    buildBirthdayGreetHint,
+    DEFAULT_CHAT_BACKGROUND,
+    isBirthdayToday,
+    markBirthdayGreeted,
+    markBirthdayStoryShown,
+    shouldGreetBirthday,
+    shouldTriggerBirthdayStory,
+} from "@/lib/birthday";
+import { storyModeLabel } from "@/content/labels/story-mode.label";
+import { SetupStore } from "@/lib/stores/setup-store";
+import { SkipSettings } from "@/lib/stores/skip-settings-store";
+import { useGameProps } from "@/lib/hooks/props-hooks";
+import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { WhaleBalance } from "@/lib/utils/whale-balance";
+import { WhaleWidget } from "@/components/WhaleWidget";
+import { TipUnlockDialog } from "@/components/tip-unlock-dialog";
+import type { TipKind } from "@/lib/tips/tip-unlocks";
+import { buildGenesisLore } from "@/lib/archive/genesis-lore";
+import { Game } from "@drincs/pixi-vn";
+import { useQueryClient } from "@tanstack/react-query";
+import { LAST_SAVE_USE_QUERY_KEY, SAVES_USE_QUERY_KEY } from "@/lib/query/save-query";
+import { quickSaveGameToIndexDB, getSaveSlotLabel } from "@/lib/utils/save-utility";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+    Send,
+    Home,
+    Save,
+    ShieldCheck,
+    LibraryBig,
+    DoorOpen,
+    Clapperboard,
+    Archive,
+    ImagePlus,
+    X,
+    Gift,
+    KeyRound,
+} from "lucide-react";
+import {
+    estimateMessagesTokens,
+    formatContextLimit,
+    sealLimitOf,
+} from "@/lib/utils/token-estimate";
+import { requestFinaleJudgment, FINALE_ENDING } from "@/lib/archive/finale";
+import {
+    filterDailyMessages,
+    runCompression,
+    saveSealToDB,
+    saveRawSealToDB,
+} from "@/lib/archive/compress";
+import { reviewMemoryViaAPI, reviewSealDocumentViaAPI } from "@/lib/ai-review";
+import type { LabelIdType } from "@drincs/pixi-vn/narration";
+
+/** 单条消息最多带几张图 */
+const MAX_IMAGES = 4;
+/** 压缩后最长边（px）：原图动辄数 MB，过大易导致请求慢/超时 */
+const MAX_IMAGE_SIDE = 1280;
+
+/** 读取图片并等比压缩为 JPEG data URL（PC 端同样适用） */
+async function fileToCompressedDataUrl(file: File): Promise<string> {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("读取图片失败"));
+        reader.readAsDataURL(file);
+    });
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("解析图片失败"));
+        el.src = dataUrl;
+    });
+
+    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.width, img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.width * scale));
+    canvas.height = Math.max(1, Math.round(img.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.8);
+}
+
+/**
+ * 未至之境聊天界面：
+ *  - 从上下文存档续写（读取历史，不另起记录）；
+ *  - 用户发言写入存档 → 调大模型（携带【探索未至之境吧】之后的全部上下文）→ 鲸鱼娘回复写入存档；
+ *  - 素材映射：聊天文本命中触发词 → 切换背景 / 立绘 / 弹表情贴纸（三种形态互不干扰，各自保留最新命中）；
+ *  - 隐藏剧情：发送前 checkHiddenTrigger——play → 本地入流+存档、不发 API、跳全屏演出；
+ *    explore → 消息照常发 API，同时右侧弹出【探索星海图书馆】【退出星海图书馆】。
+ */
+export function ChatScreen() {
+    const { t } = useTranslation(["ui"]);
+    const gameProps = useGameProps();
+    const queryClient = useQueryClient();
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [input, setInput] = useState("");
+    const [images, setImages] = useState<string[]>([]);
+    const [reading, setReading] = useState(false);
+    const fileRef = useRef<HTMLInputElement>(null);
+    const [sending, setSending] = useState(false);
+    const [loaded, setLoaded] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const listRef = useRef<HTMLDivElement>(null);
+    const whaleName = SetupStore.store.state.whaleName || "鲸鲸";
+
+    // ── 素材槽位状态：背景 / 立绘 / 贴纸 ──
+    const [background, setBackground] = useState<string | null>(() =>
+        // 生日当天默认换成生日背景；命中关键词照常覆盖，下次再进聊天页又回到生日背景
+        isBirthdayToday(SetupStore.store.state.birthday)
+            ? BIRTHDAY_BACKGROUND_SRC
+            : DEFAULT_CHAT_BACKGROUND,
+    );
+    const [character, setCharacter] = useState<MaterialEntry | null>(null);
+    const [charRatio, setCharRatio] = useState<number | null>(null);
+    const [sticker, setSticker] = useState<MaterialEntry | null>(null);
+    const [stickerTs, setStickerTs] = useState<number>(Date.now());
+    const [stickerFading, setStickerFading] = useState(false);
+    const stickerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** 立绘消失：淡出态 + 定时器 + 代次令牌（普通立绘 5s / 群星战书 10s；命中新立绘或封卷结局时作废令牌） */
+    const [characterFading, setCharacterFading] = useState(false);
+    const characterDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const characterDismissTokenRef = useRef(0);
+    /** 立绘联动序列：链式定时器 + 代次令牌（被新命中/封卷打断时作废旧令牌） */
+    const characterSeqTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const characterSeqTokenRef = useRef(0);
+    /** 背景延时联动（战锤线 → 群星线）：接力定时器 + 代次令牌（命中其它背景/封卷时作废） */
+    const backgroundSeqTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const backgroundSeqTokenRef = useRef(0);
+
+    // ── 长期记忆状态：用户挑选保留的记忆 / 是否已弹出 55k 提醒 ──
+    const [memories, setMemories] = useState<SavedMemory[]>([]);
+    /** 已触发过 55k 提醒（一次会话只提醒一次，不强制） */
+    const [memoryNoticeShown, setMemoryNoticeShown] = useState(false);
+    /** 已触发过 88% 封卷提醒（一次会话只提醒一次） */
+    const [sealNoticeShown, setSealNoticeShown] = useState(false);
+    /** 封卷进行中（禁用按钮，避免重复触发） */
+    const [sealing, setSealing] = useState(false);
+    const sealAbortRef = useRef<AbortController | null>(null);
+
+    // ── 隐藏剧情·探索期状态：段演完回聊天后右侧常驻两个按钮 ──
+    const [exploreAnchor, setExploreAnchor] = useState<string | null>(null);
+    /** 打开哪个触发词弹窗（null = 关着）：extra 番外词 / hidden 隐藏词 */
+    const [tipKind, setTipKind] = useState<TipKind | null>(null);
+    const [exploreOpen, setExploreOpen] = useState(false);
+
+    /** 立绘比例：宽/高。判断为正方形或竖版（比例<1.1）时启用左对齐大立绘布局 */
+    const showBanner = character !== null && charRatio !== null && charRatio < 1.1;
+
+    /** 刷新探索期状态：锚点段 + 按钮开关 */
+    const refreshExplore = async () => {
+        try {
+            const [anchor, progress] = await Promise.all([
+                currentExploreAnchor(),
+                getHiddenProgress(),
+            ]);
+            setExploreAnchor(anchor);
+            setExploreOpen(progress.exploreOpen && anchor !== null);
+        } catch (e) {
+            console.error("刷新探索态失败", e);
+        }
+    };
+
+    /** 探索期按钮文案：按锚点段所属场景命名（s1 星海图书馆 / s2 天空之城 / s3 亚特兰蒂斯） */
+    const exploreSceneName = exploreAnchor?.startsWith("s2")
+        ? "天空之城"
+        : exploreAnchor?.startsWith("s3")
+          ? "亚特兰蒂斯"
+          : "星海图书馆";
+
+    useEffect(() => {
+        // 兜底：清掉画布上可能残留的演出背景（隐藏剧情/开场演出结束后回聊天页，
+        // 若 sprite 未被引擎清干净，会和聊天页背景叠成两块→白纱重影）
+        clearCurrentBackground();
+        void refreshExplore();
+        let cancelled = false;
+        contextArchive
+            .loadAll()
+            .then(async (history) => {
+                if (cancelled) return;
+                // 首次进入：写入开场锚点（“XXX，和我一起探索未至之境吧。”），
+                // 从这句话开始成为全量上下文的起点，之后只续写、不另建文件。
+                if (history.length === 0 && SetupStore.store.state.onboardingDone) {
+                    const { playerName, whaleName } = SetupStore.store.state;
+                    const anchor: ChatMessage = {
+                        role: "assistant",
+                        content: `${playerName}，和我一起探索未至之境吧。`,
+                        ts: Date.now(),
+                        character: whaleName || "鲸鲸",
+                    };
+                    await contextArchive.append(anchor);
+                    history = [anchor];
+                }
+                setMessages(history);
+                setLoaded(true);
+            })
+            .catch((e) => {
+                console.error("加载上下文失败", e);
+                setLoaded(true);
+            });
+        // 并行加载长期记忆（与全量上下文分开存储）
+        memoryArchive
+            .loadAllMemories()
+            .then((saved) => {
+                if (!cancelled) setMemories(saved);
+            })
+            .catch((e) => console.error("加载记忆失败", e));
+
+        // 外部读档（gal:archive-changed，由 loadSave 派发）后重新拉取全部上下文与探索态
+        const handleArchiveChanged = () => {
+            if (cancelled) return;
+            void refreshExplore();
+            contextArchive
+                .loadAll()
+                .then((history) => {
+                    if (!cancelled) setMessages(history);
+                })
+                .catch((e) => console.error("读档后刷新上下文失败", e));
+        };
+        window.addEventListener("gal:archive-changed", handleArchiveChanged);
+        return () => {
+            cancelled = true;
+            window.removeEventListener("gal:archive-changed", handleArchiveChanged);
+        };
+    }, []);
+
+    /**
+     * 生日剧情自动触发（2026-10-26 用户定稿）：每次进聊天页判定一次。
+     *  - 只有「今天 == 生日」且今年还没放过时才放；
+     *  - 记账放在进场**之前**，演出途中刷新页面也不会重复触发；
+     *  - 演出走和番外同一套（全屏 narration + 结束回聊天页），不写聊天记录、不发 API。
+     */
+    const birthdayCheckedRef = useRef(false);
+    useEffect(() => {
+        if (!loaded || birthdayCheckedRef.current) return;
+        const setup = SetupStore.store.state;
+        // 开场设定弹框正开着时不抢它；没填生日时 shouldTrigger 自己会返回 false。
+        // 注意别判 onboardingDone —— 那个字段不落盘，重启后是 false，会把判定全挡掉。
+        if (setup.formMode === "setup") return;
+        birthdayCheckedRef.current = true;
+        if (!shouldTriggerBirthdayStory()) return;
+        markBirthdayStoryShown();
+        void (async () => {
+            setActiveHiddenLabel(BIRTHDAY_LABEL_ID);
+            setActiveHiddenSeqFromLabel(BIRTHDAY_LABEL_ID);
+            SkipSettings.setEnabled(false);
+            await gameProps.navigate({ to: "/game/narration" });
+            await Game.start(BIRTHDAY_LABEL_ID as LabelIdType, gameProps);
+            gameProps.invalidateInterfaceData();
+        })();
+    }, [loaded, gameProps]);
+
+    useEffect(() => {
+        // 组件卸载时清理贴纸定时器 + 立绘序列定时器 + 中断进行中的封卷
+        return () => {
+            if (stickerTimerRef.current) {
+                clearTimeout(stickerTimerRef.current);
+                stickerTimerRef.current = null;
+            }
+            if (characterSeqTimerRef.current) {
+                clearTimeout(characterSeqTimerRef.current);
+                characterSeqTimerRef.current = null;
+            }
+            characterSeqTokenRef.current += 1;
+            if (backgroundSeqTimerRef.current) {
+                clearTimeout(backgroundSeqTimerRef.current);
+                backgroundSeqTimerRef.current = null;
+            }
+            backgroundSeqTokenRef.current += 1;
+            if (characterDismissTimerRef.current) {
+                clearTimeout(characterDismissTimerRef.current);
+                characterDismissTimerRef.current = null;
+            }
+            characterDismissTokenRef.current += 1;
+            if (sealAbortRef.current) {
+                sealAbortRef.current.abort();
+                sealAbortRef.current = null;
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    }, [messages, sending]);
+
+    /** 打黑工系列立绘每张停留时长（ms）：1 → 消失 → 2 → 消失 → 3 → 停留 */
+    const CHARACTER_SEQUENCE_STEP_MS = 4000;
+    /** 普通立绘存在时长（ms）：命中后 5 秒淡出消失（与贴纸一致） */
+    const CHARACTER_DISMISS_MS = 5000;
+    /** 群星战书存在时长（ms）：序列末帧与单独命中第三张时特殊处理为 10 秒 */
+    const SEQUENCE_FINAL_DISMISS_MS = 10000;
+    /** 背景延时联动步长（ms）：首张命中后等这么久，期间无其它背景命中才自动续下一张 */
+    const BACKGROUND_SEQUENCE_DELAY_MS = 15000;
+
+    /** 中断进行中的立绘联动序列（命中普通立绘 / 封卷结局 / 重复命中时调用） */
+    const stopCharacterSequence = () => {
+        if (characterSeqTimerRef.current) {
+            clearTimeout(characterSeqTimerRef.current);
+            characterSeqTimerRef.current = null;
+        }
+        characterSeqTokenRef.current += 1;
+    };
+
+    /** 取消/中断当前立绘的消失定时（命中新立绘、序列推进、封卷结局时调用） */
+    const stopCharacterDismiss = () => {
+        if (characterDismissTimerRef.current) {
+            clearTimeout(characterDismissTimerRef.current);
+            characterDismissTimerRef.current = null;
+        }
+        characterDismissTokenRef.current += 1;
+        setCharacterFading(false);
+    };
+
+    /** 让当前立绘停留 durationMs 后淡出消失（300ms 过渡后卸载，与贴纸同款） */
+    const scheduleCharacterDismiss = (durationMs: number) => {
+        stopCharacterDismiss();
+        const token = characterDismissTokenRef.current;
+        characterDismissTimerRef.current = setTimeout(() => {
+            if (characterDismissTokenRef.current !== token) return;
+            setCharacterFading(true);
+            characterDismissTimerRef.current = setTimeout(() => {
+                if (characterDismissTokenRef.current !== token) return;
+                characterDismissTimerRef.current = null;
+                setCharacter(null);
+                setCharRatio(null);
+                setCharacterFading(false);
+            }, 300);
+        }, durationMs);
+    };
+
+    /** 命中带 sequence 的立绘：按「1 → 消失 → 2 → …」逐张轮播，末帧（群星战书）停留 10 秒后淡出 */
+    const runCharacterSequence = (first: MaterialEntry) => {
+        const seq = first.sequence ?? [];
+        stopCharacterSequence();
+        stopCharacterDismiss();
+        const token = characterSeqTokenRef.current;
+        const show = (entry: MaterialEntry) => {
+            setCharacter(entry);
+            setCharRatio(null);
+        };
+        show(first);
+        let nextIndex = 0;
+        const step = () => {
+            if (characterSeqTokenRef.current !== token) return; // 已被新命中打断
+            if (nextIndex >= seq.length) {
+                characterSeqTimerRef.current = null; // 保护性兜底（正常流程不会走到）
+                return;
+            }
+            const next = MATERIAL_INDEX.find((e) => e.src === seq[nextIndex]);
+            if (next) show(next);
+            nextIndex += 1;
+            if (nextIndex >= seq.length) {
+                // 末帧（群星战书）已显示：从现在起 10 秒后淡出，不再继续轮播
+                characterSeqTimerRef.current = null;
+                scheduleCharacterDismiss(SEQUENCE_FINAL_DISMISS_MS);
+                return;
+            }
+            characterSeqTimerRef.current = setTimeout(step, CHARACTER_SEQUENCE_STEP_MS);
+        };
+        characterSeqTimerRef.current = setTimeout(step, CHARACTER_SEQUENCE_STEP_MS);
+    };
+
+    /** 中断进行中的背景延时联动（命中任意背景 / 封卷结局 / 组件卸载时调用） */
+    const stopBackgroundSequence = () => {
+        if (backgroundSeqTimerRef.current) {
+            clearTimeout(backgroundSeqTimerRef.current);
+            backgroundSeqTimerRef.current = null;
+        }
+        backgroundSeqTokenRef.current += 1;
+    };
+
+    /**
+     * 命中带 sequence 的背景：先显示首张，等 BACKGROUND_SEQUENCE_DELAY_MS；
+     * 期间若没有别的背景被命中，自动切下一张（末张常驻，不再接力）。
+     * 命中任意其它背景都会先走 stopBackgroundSequence() 使 token 失效，接力自然中断。
+     */
+    const runBackgroundSequence = (first: MaterialEntry) => {
+        const seq = first.sequence ?? [];
+        stopBackgroundSequence();
+        const token = backgroundSeqTokenRef.current;
+        setBackground(first.src);
+        let nextIndex = 0;
+        const step = () => {
+            if (backgroundSeqTokenRef.current !== token) return; // 已被其它背景打断
+            if (nextIndex >= seq.length) {
+                backgroundSeqTimerRef.current = null;
+                return;
+            }
+            setBackground(seq[nextIndex]);
+            nextIndex += 1;
+            if (nextIndex >= seq.length) {
+                backgroundSeqTimerRef.current = null; // 末张：常驻，不再接力
+                return;
+            }
+            backgroundSeqTimerRef.current = setTimeout(step, BACKGROUND_SEQUENCE_DELAY_MS);
+        };
+        backgroundSeqTimerRef.current = setTimeout(step, BACKGROUND_SEQUENCE_DELAY_MS);
+    };
+
+    /** 扫描文本，按形态把命中的素材填进对应槽位 */
+    const applyMaterials = (text: string) => {
+        const hit = matchMaterials(text);
+        if (!hit) return;
+        switch (hit.entry.kind) {
+            case "background":
+                stopBackgroundSequence(); // 任意背景命中都先打断旧的延时联动
+                if (hit.entry.sequence && hit.entry.sequence.length > 0) {
+                    runBackgroundSequence(hit.entry);
+                } else {
+                    setBackground(hit.entry.src);
+                }
+                break;
+            case "character":
+                stopCharacterSequence();
+                if (hit.entry.sequence && hit.entry.sequence.length > 0) {
+                    runCharacterSequence(hit.entry);
+                } else {
+                    stopCharacterDismiss();
+                    setCharacter(hit.entry);
+                    setCharRatio(null); // 由 <img> onLoad 读取真实比例
+                    scheduleCharacterDismiss(CHARACTER_DISMISS_MS); // 5 秒后淡出消失
+                }
+                break;
+            case "sticker":
+                setSticker(hit.entry);
+                setStickerTs(Date.now());
+                setStickerFading(false);
+                // 5 秒后渐隐淡出（300ms 过渡后卸载）；触发新贴纸时重置计时
+                if (stickerTimerRef.current) {
+                    clearTimeout(stickerTimerRef.current);
+                }
+                stickerTimerRef.current = setTimeout(() => {
+                    setStickerFading(true);
+                    stickerTimerRef.current = setTimeout(() => {
+                        setSticker(null);
+                        setStickerFading(false);
+                        stickerTimerRef.current = null;
+                    }, 300);
+                }, 5000);
+                break;
+        }
+    };
+
+    /** 保存记忆：把一份新记忆追加进记忆列表并落盘（记忆存档，supports 明文） */
+    const saveMemory = async (content: string, note?: string) => {
+        if (!content.trim()) return;
+        const memory: SavedMemory = {
+            id: String(Date.now()),
+            content: content.trim(),
+            ts: Date.now(),
+            note,
+        };
+        try {
+            const review = await reviewMemoryViaAPI(memory);
+            memory.apiReview = review;
+        } catch (e) {
+            console.error("记忆 API 审核失败", e);
+        }
+        const next = [...memories, memory];
+        setMemories(next);
+        try {
+            await memoryArchive.saveMemories(next);
+            const review = memory.apiReview;
+            if (review && review.status === "needs_revision") {
+                toast.warning(
+                    t("memory_saved_review", {
+                        defaultValue: `记下了，不过鲸鱼娘觉得：${review.comment}`,
+                    }),
+                );
+            } else {
+                toast.success(t("memory_saved", { defaultValue: "已把这份记忆好好收起来了。" }));
+            }
+        } catch (e) {
+            toast.error(t("memory_save_fail", { defaultValue: "记忆没存上，再试一次？" }));
+            console.error("保存记忆失败", e);
+        }
+    };
+
+    /** 触发上限提醒：只在会话内第一次超限时插入一条系统提示卡片 */
+    const maybeShowMemoryNotice = (all: ChatMessage[]) => {
+        if (memoryNoticeShown) return false;
+        const limit = SetupStore.store.state.contextLimit;
+        const estimate = estimateMessagesTokens(all);
+        if (estimate < limit) return false;
+        setMemoryNoticeShown(true);
+        return true;
+    };
+
+    /** 触发 88% 封卷提醒：阈值随「设置 → 对话上下文」的档位走 */
+    const maybeShowSealNotice = (all: ChatMessage[]) => {
+        if (sealNoticeShown) return false;
+        const estimate = estimateMessagesTokens(all);
+        if (estimate < sealLimitOf(SetupStore.store.state.contextLimit)) return false;
+        setSealNoticeShown(true);
+        return true;
+    };
+
+    const handleSend = async () => {
+        const content = input.trim();
+        const attachedImages = images;
+        const hasImages = attachedImages.length > 0;
+        if ((!content && !hasImages) || sending) return;
+        setInput("");
+        setImages([]);
+        // 图片不入存档（体积大），只在存档里留 [图片] 占位，标明"对话到这里有图片"
+        const archived = hasImages
+            ? content
+                ? `${content}\n${IMAGE_PLACEHOLDER}`
+                : IMAGE_PLACEHOLDER
+            : content;
+        const userMsg: ChatMessage = { role: "user", content: archived, ts: Date.now() };
+        // 先临时上屏，再存档；玩家发言命中素材立即生效
+        const optimistic = [...messages, userMsg];
+        setMessages(optimistic);
+        applyMaterials(content);
+        setSending(true);
+        try {
+            await contextArchive.append(userMsg);
+
+            // ── 隐藏剧情触发判定（发送到 API 之前拦截）──
+            // play：命中「当前 ready 段」关键词 → 本地入流+存档、不发 API、跳全屏演出；
+            // explore：命中「探索锚点段」关键词 → 消息照常发 API，同时弹出右侧探索按钮。
+            const hidden = await checkHiddenTrigger(content);
+            if (hidden?.type === "play") {
+                setSending(false);
+                // 记账：隐藏剧情演出中（onEnd 据此回聊天页，不反查引擎 label）
+                setActiveHiddenLabel(hidden.label);
+                // 右上角【隐藏剧情 X/9】角标：进入演出即点亮
+                setActiveHiddenSeqFromLabel(hidden.label);
+                // 隐藏剧情演出必须逐句等待玩家点击：关闭任何遗留的自动/快进态
+                SkipSettings.setEnabled(false);
+                await gameProps.navigate({ to: "/game/narration" });
+                await Game.start(hidden.label as LabelIdType, gameProps);
+                gameProps.invalidateInterfaceData();
+                return;
+            }
+            if (hidden?.type === "explore") {
+                setExploreOpen(true);
+                setExploreAnchor(await currentExploreAnchor());
+            }
+
+            // ── 番外篇触发判定（独立体系：锁死触发词、可反复触发、不沾九段主线/教程）──
+            // 命中 → 本地入流+存档、不发 API、直接进全屏演出（同隐藏剧情 play 的手感）
+            const extra = matchExtraStory(content);
+            if (extra) {
+                setSending(false);
+                // 记账：番外演出中（onEnd 据此回聊天页，不反查引擎 label）
+                setActiveHiddenLabel(extra.label);
+                // 番外不占【隐藏剧情 X/9】角标（label 不在 9 段表中 → 序号自动落 0）
+                setActiveHiddenSeqFromLabel(extra.label);
+                SkipSettings.setEnabled(false);
+                await gameProps.navigate({ to: "/game/narration" });
+                await Game.start(extra.label as LabelIdType, gameProps);
+                gameProps.invalidateInterfaceData();
+                return;
+            }
+
+            // ── 游客模式（没填 API Key）：不进入模型调用 ──
+            // 隐藏剧情、番外都在上面拦完了，这里只挡实时对话；
+            // 用户消息照常留在流里，给一句占位回复，避免"发出去就消失"的错觉。
+            if (!SetupStore.store.state.apiKey.trim()) {
+                const guestReply: ChatMessage = {
+                    role: "assistant",
+                    content:
+                        "（游客模式）你的话我收下了。想听我接话，去设置里填一把 API Key，我就能陪你聊了。",
+                    ts: Date.now(),
+                    character: whaleName,
+                };
+                await contextArchive.append(guestReply);
+                setMessages((prev) => [...prev, guestReply]);
+                setSending(false);
+                return;
+            }
+
+            const all = [...(await contextArchive.loadAll())];
+            // 接近上下文阈值时提醒用户挑选保留记忆（不强制，只在会话内提醒一次）
+            if (maybeShowMemoryNotice(all)) {
+                const notice: ChatMessage = {
+                    role: "system",
+                    content:
+                        `【记忆保护提醒】我们的对话已经快到 ${formatContextLimit(SetupStore.store.state.contextLimit)} 上限了，再继续下去，最早的那些记忆可能会被悄悄冲掉。要不要现在选几件你最想记住的事，我帮你好好收起来？`,
+                    ts: Date.now(),
+                    character: whaleName,
+                };
+                setMessages((prev) => [...prev, notice]);
+            }
+            if (maybeShowSealNotice(all)) {
+                const sealNotice: ChatMessage = {
+                    role: "system",
+                    content:
+                        "【封卷建议】我们的对话已经快装不下了……要不要现在封卷，把这段旅程压成一个缩略剧本？以后还能随时打开来看。",
+                    ts: Date.now(),
+                    character: whaleName,
+                };
+                setMessages((prev) => [...prev, sealNotice]);
+            }
+            // 生日当天的第一句话：把"今天是生日"的提示只拼进本次 system（不写存档）
+            const birthdayGreet = shouldGreetBirthday();
+            const chatResult = await chatCompletion(all, {
+                memories,
+                images: attachedImages,
+                birthdayHint: birthdayGreet
+                    ? buildBirthdayGreetHint(SetupStore.store.state.playerName, whaleName)
+                    : undefined,
+            });
+            if (birthdayGreet) markBirthdayGreeted();
+            const reply: ChatMessage = {
+                role: "assistant",
+                content: chatResult.content,
+                ts: Date.now(),
+                character: whaleName,
+            };
+            await contextArchive.append(reply);
+            setMessages((prev) => [...prev, reply]);
+            // AI 回复命中素材也生效（如回复里出现"开心"切开心立绘）
+            applyMaterials(chatResult.content);
+            if (chatResult.usage) {
+                const { modelName } = SetupStore.store.state;
+                try {
+                    WhaleBalance.recordTurn(
+                        modelName,
+                        chatResult.usage.promptTokens,
+                        chatResult.usage.completionTokens,
+                        chatResult.usage.cacheHitTokens,
+                    );
+                } catch {
+                    // 账本写入失败不影响聊天流（localStorage 满等极端情况静默跳过）
+                }
+            }
+        } catch (e) {
+            const reason = e instanceof Error ? e.message : "未知错误";
+            toast.error(reason);
+            setMessages((prev) => prev.filter((m) => m !== userMsg));
+        } finally {
+            setSending(false);
+        }
+    };
+
+    /** 选图：交给系统文件选择器，读入后压缩成 data URL 待发送 */
+    const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files ?? []);
+        // 清空 value，否则连续选同一张图不会再触发 change
+        e.target.value = "";
+        if (files.length === 0) return;
+
+        setReading(true);
+        try {
+            const room = Math.max(0, MAX_IMAGES - images.length);
+            const picked = await Promise.all(files.slice(0, room).map(fileToCompressedDataUrl));
+            setImages((prev) => [...prev, ...picked].slice(0, MAX_IMAGES));
+        } catch {
+            // 单张读取失败就跳过，不打断输入
+        } finally {
+            setReading(false);
+        }
+    };
+
+    /** 存档按钮：快存当前进度（含对话全量上下文快照），写入快速存档槽 */
+    const handleQuickSave = async () => {
+        if (saving) return;
+        setSaving(true);
+        try {
+            const save = await quickSaveGameToIndexDB();
+            // 同步刷新查询缓存，确保主菜单「继续」能立刻读到最新存档
+            queryClient.setQueryData([SAVES_USE_QUERY_KEY, save.id], save);
+            queryClient.setQueryData([LAST_SAVE_USE_QUERY_KEY], save);
+            toast.success(
+                `${t("success_save")}：${getSaveSlotLabel(save.id, t)}（可读档：设置 → 存档读档 → ⚡快速存档）`,
+            );
+        } catch (e) {
+            toast.error(t("fail_save"));
+            console.error("存档失败", e);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    /** 封卷按钮：先裁判后压缩流水线 */
+    const handleSeal = async () => {
+        if (sealing) return;
+        setSealing(true);
+        const controller = new AbortController();
+        sealAbortRef.current = controller;
+
+        try {
+            const all = await contextArchive.loadAll();
+            const daily = filterDailyMessages(all);
+            if (daily.length === 0) {
+                toast.error("还没有可以封卷的聊天记录。");
+                return;
+            }
+
+            const verdict = await requestFinaleJudgment(daily);
+
+            if (verdict === "grant") {
+                stopCharacterSequence();
+                stopCharacterDismiss(); // 结局立绘常驻：作废旧消失定时，防止误清终章立绘
+                stopBackgroundSequence(); // 结局背景是终态：作废未跑完的背景延时接力
+                setBackground(FINALE_ENDING.backgroundSrc);
+                setCharacter({ kind: "character", src: FINALE_ENDING.characterSrc, triggers: [] });
+                toast("她答应了。", { description: "封卷完成后，这份结局会一起存进去。" });
+            }
+
+            const result = await runCompression(daily, verdict, controller.signal);
+
+            if (result.doc) {
+                try {
+                    const review = await reviewSealDocumentViaAPI(result.doc);
+                    result.doc.meta.apiReview = review;
+                } catch (e) {
+                    console.error("封卷 API 最终审核失败", e);
+                }
+
+                const entry = await saveSealToDB(result.doc, result.needsReview);
+
+                if (verdict === "grant") {
+                    const { whaleName: wn, playerName } = SetupStore.store.state;
+                    const lore = buildGenesisLore(wn, playerName);
+                    await contextArchive.append(lore);
+                }
+
+                if (result.needsReview) {
+                    toast.warning(
+                        `封卷完成，但部分场景需要人工审核（共 ${entry.sceneCount} 个场景）`,
+                    );
+                } else {
+                    toast.success(`封卷完成！已生成 ${entry.sceneCount} 个场景的缩略剧本。`);
+                }
+            } else if (result.raw) {
+                const rawEntry = await saveRawSealToDB(result.raw);
+                toast.warning(`封卷结果结构异常，原始数据已保存为 ${rawEntry.file}，可稍后重试。`);
+            }
+        } catch (e) {
+            const isAbort = e instanceof DOMException && e.name === "AbortError";
+            if (isAbort) {
+                toast.info("封卷已取消。");
+                return;
+            }
+            const reason = e instanceof Error ? e.message : "未知错误";
+            toast.error(`封卷失败：${reason}`);
+            console.error("封卷失败", e);
+        } finally {
+            sealAbortRef.current = null;
+            setSealing(false);
+        }
+    };
+
+    return (
+        <div className="pointer-events-auto relative flex h-full w-full flex-col overflow-hidden">
+            {/* 背景槽位：命中触发词即切换。
+                普通背景压到 40%（画布底色 #303030，淡一点不抢正文）；
+                生日全家福是夜景，40% 会糊成一片灰，单独放亮到 90%。 */}
+            <div
+                className={`pointer-events-none absolute inset-0 bg-cover bg-center transition-all duration-700 ${
+                    background === BIRTHDAY_BACKGROUND_SRC ? "opacity-90" : "opacity-40"
+                }`}
+                style={{ backgroundImage: background ? `url(${background})` : undefined }}
+            />
+
+            {/* 立绘槽位：竖版/正方形 → 主内容区左对齐大立绘；横版 → 左下角小立绘 */}
+
+            {/* 左下角小立绘（横版图 / charRatio 尚未算好时的兜底展示）：
+                绑定 characterFading 保证 5 秒后淡出消失；补 onLoad 计算比例，
+                否则 charRatio 恒为 null，showBanner 永远 false，竖版立绘会被锁死在这个小图分支 */}
+            {character && !showBanner && (
+                <div
+                    className={`pointer-events-none absolute bottom-40 left-4 z-10 hidden w-52 transition-opacity duration-300 sm:block ${
+                        characterFading ? "opacity-0" : ""
+                    }`}
+                >
+                    <img
+                        key={character.src}
+                        src={character.src}
+                        alt="立绘"
+                        className="w-full drop-shadow-xl animate-in fade-in zoom-in-95 duration-300"
+                        onLoad={(e) => {
+                            const el = e.currentTarget;
+                            if (el.naturalWidth > 0) {
+                                setCharRatio(el.naturalWidth / el.naturalHeight);
+                            }
+                        }}
+                    />
+                </div>
+            )}
+
+            {/* 顶部栏 */}
+            <header className="relative z-20 flex items-center justify-between px-4 py-3 backdrop-blur-sm bg-background/40">
+                <div className="flex items-center gap-2">
+                    <span className="size-3 rounded-full bg-sky-400" />
+                    <span className="font-semibold">
+                        {t("chat_title", { defaultValue: "未至之境" })}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                        {t("chat_with", { defaultValue: `与 ${whaleName} 对话` })}
+                    </span>
+                </div>
+                <div className="flex items-center gap-1">
+                    {/* 触发词解锁（2026-10-17）：玩游戏过线 → 按顺序解锁，进度随存档绑定 */}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTipKind("extra")}
+                        title="查看番外剧情触发词"
+                    >
+                        <Gift className="size-4" />
+                        {t("extra_tips_button", { defaultValue: "番外触发词" })}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTipKind("hidden")}
+                        title="查看隐藏剧情触发词"
+                    >
+                        <KeyRound className="size-4" />
+                        {t("hidden_tips_button", { defaultValue: "隐藏触发词" })}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={saving}
+                        onClick={handleQuickSave}
+                        title={t("quick_save")}
+                    >
+                        <Save className="size-4" />
+                        {t("save")}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                            // 进入剧情模式（短引导演出）：演完由 Game.onEnd 按 onboardingDone 决定回聊天/主菜单
+                            await gameProps.navigate({ to: "/game/narration" });
+                            await Game.start(storyModeLabel, gameProps);
+                        }}
+                    >
+                        <Clapperboard className="size-4" />
+                        {t("enter_story_mode", { defaultValue: "进入剧情模式" })}
+                    </Button>
+                    {sealNoticeShown && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={sealing}
+                            onClick={handleSeal}
+                            title="封卷"
+                        >
+                            <Archive className="size-4" />
+                            {sealing ? "封卷中……" : "封卷"}
+                        </Button>
+                    )}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            gameProps.navigate({ to: "/" });
+                        }}
+                    >
+                        <Home className="size-4" />
+                        {t("home", { defaultValue: "主菜单" })}
+                    </Button>
+                </div>
+            </header>
+
+            {/* 隐藏剧情·探索按钮：段演完进入探索期后右侧常驻（层级 1~3） */}
+            {exploreOpen && exploreAnchor && (
+                <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2">
+                    <Button
+                        variant="secondary"
+                        className="pointer-events-auto shadow-lg backdrop-blur"
+                        disabled={sending}
+                        onClick={async () => {
+                            if (!exploreAnchor) return;
+                            const count = await getExploreCount(exploreAnchor);
+                            if (count >= 5) {
+                                await refreshExplore();
+                                return;
+                            }
+                            // 锚点 s1-1 → explore-s1-1-{count+1}；s1-2 → explore-s1-2-{count+1}
+                            const labelId = `explore-${exploreAnchor}-${count + 1}` as LabelIdType;
+                            setSending(true);
+                            setActiveHiddenLabel(labelId);
+                            await gameProps.navigate({ to: "/game/narration" });
+                            await Game.start(labelId, gameProps);
+                            gameProps.invalidateInterfaceData();
+                            setSending(false);
+                            await refreshExplore();
+                        }}
+                    >
+                        <LibraryBig className="size-4" />
+                        {`探索${exploreSceneName}`}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        className="pointer-events-auto shadow-lg backdrop-blur"
+                        onClick={async () => {
+                            setExploreOpen(false);
+                            try {
+                                const p = await getHiddenProgress();
+                                await setHiddenProgress({ ...p, exploreOpen: false });
+                            } catch (e) {
+                                console.error("退出探索期失败", e);
+                            }
+                        }}
+                    >
+                        <DoorOpen className="size-4" />
+                        {`退出${exploreSceneName}`}
+                    </Button>
+                </div>
+            )}
+
+            {/* 主内容区：左侧横幅立绘 + 右侧对话框（仅竖版/正方形启用左对齐） */}
+            <div className="relative z-10 flex min-h-0 flex-1">
+                {/* 横幅立绘：高度自适应，宽度按比例自动，上限避免盖住对话框 */}
+                {showBanner && character && (
+                    <div
+                        className={`pointer-events-none hidden h-full max-w-[40vw] shrink-0 transition-opacity duration-300 sm:block ${
+                            characterFading ? "opacity-0" : ""
+                        }`}
+                    >
+                        <img
+                            key={character.src}
+                            src={character.src}
+                            alt="立绘"
+                            className="h-full w-auto max-w-[40vw]"
+                            style={{ objectFit: "contain" }}
+                            onLoad={(e) => {
+                                const el = e.currentTarget;
+                                if (el.naturalWidth > 0) {
+                                    setCharRatio(el.naturalWidth / el.naturalHeight);
+                                }
+                            }}
+                        />
+                    </div>
+                )}
+
+                {/* 消息流：外层滚动容器贴满右侧（滚动条右贴边），内容在里层限宽居中 */}
+                <div
+                    ref={listRef}
+                    className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto py-4"
+                >
+                    <div
+                        className={`mx-auto flex w-full min-w-0 flex-col gap-3 px-4 ${
+                            showBanner ? "" : "max-w-3xl"
+                        }`}
+                    >
+                        {!loaded && (
+                            <div className="mx-auto text-sm text-muted-foreground">
+                                {t("chat_loading", { defaultValue: "正在回到上一次的湖边……" })}
+                            </div>
+                        )}
+                        {loaded && messages.length === 0 && (
+                            <div className="mx-auto text-sm text-muted-foreground">
+                                {t("chat_empty", {
+                                    defaultValue: "还没有对话记录，对鲸鱼娘说点什么吧。",
+                                })}
+                            </div>
+                        )}
+                        {messages.map((m, i) => {
+                            const isUser = m.role === "user";
+                            return (
+                                <div
+                                    key={`${m.ts}-${i}`}
+                                    className={`flex gap-2 ${isUser ? "justify-end" : "justify-start"}`}
+                                >
+                                    {!isUser && sticker === null && (
+                                        <div className="mt-1 text-xs text-muted-foreground select-none">
+                                            🐋
+                                        </div>
+                                    )}
+                                    <div
+                                        className={`max-w-[80%] rounded-2xl px-4 py-2 whitespace-pre-wrap ${
+                                            isUser
+                                                ? "bg-sky-600 text-white rounded-br-sm"
+                                                : "bg-background/80 backdrop-blur rounded-bl-sm border"
+                                        }`}
+                                    >
+                                        {!isUser && (
+                                            <div className="mb-0.5 text-xs text-sky-500 font-medium">
+                                                {m.character || whaleName}
+                                            </div>
+                                        )}
+                                        {m.content}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {sending && (
+                            <div className="flex justify-start">
+                                <div className="max-w-[80%] rounded-2xl rounded-bl-sm border bg-background/80 px-4 py-2 text-sm text-muted-foreground backdrop-blur">
+                                    正在想着怎么回答你……
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 记忆卡片：想记住的事写在这里，保存后随每次对话一起带着 */}
+                        {memories.length > 0 || memoryNoticeShown ? (
+                            <MemoryCard memories={memories} onSave={saveMemory} />
+                        ) : null}
+
+                        {/* 表情贴纸槽位：最后一次命中后短暂展示，5 秒后渐隐淡出 */}
+                        {sticker && (
+                            <div
+                                key={stickerTs}
+                                className={`pointer-events-none flex justify-start transition-opacity duration-300 ${
+                                    stickerFading
+                                        ? "opacity-0"
+                                        : "animate-in fade-in slide-in-from-bottom-2 duration-300"
+                                }`}
+                            >
+                                <img
+                                    src={sticker.src}
+                                    alt="表情贴纸"
+                                    className="w-36 rounded-xl shadow-lg"
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* 输入栏 */}
+            <footer className="relative z-20 border-t bg-background/40 backdrop-blur-sm">
+                {/* 已选图片预览（发送前可逐张移除） */}
+                {images.length > 0 && (
+                    <div className="mx-auto flex max-w-3xl items-center gap-2 overflow-x-auto px-4 pt-3">
+                        {images.map((src, i) => (
+                            <div key={i} className="relative shrink-0">
+                                <img
+                                    src={src}
+                                    alt="待发送图片"
+                                    className="h-16 w-16 rounded-md border object-cover"
+                                />
+                                <button
+                                    type="button"
+                                    aria-label="移除这张图片"
+                                    className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-black/70 text-white"
+                                    onClick={() =>
+                                        setImages((prev) => prev.filter((_, idx) => idx !== i))
+                                    }
+                                >
+                                    <X className="size-3" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3">
+                    {/* 选图：交给系统文件选择器 */}
+                    <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handlePick}
+                    />
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={sending || reading || images.length >= MAX_IMAGES}
+                        aria-label="添加图片"
+                        title={images.length >= MAX_IMAGES ? `最多 ${MAX_IMAGES} 张` : "添加图片"}
+                        onClick={() => fileRef.current?.click()}
+                    >
+                        <ImagePlus className="size-4" />
+                    </Button>
+                    <Input
+                        value={input}
+                        placeholder={
+                            reading
+                                ? "正在处理图片……"
+                                : t("chat_input_placeholder", {
+                                      defaultValue: `想和 ${whaleName} 说点什么……`,
+                                  })
+                        }
+                        disabled={sending}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSend();
+                            }
+                        }}
+                        onChange={(e) => setInput(e.target.value)}
+                    />
+                    <Button
+                        onClick={handleSend}
+                        disabled={sending || (!input.trim() && images.length === 0)}
+                    >
+                        <Send className="size-4" />
+                        {t("chat_send", { defaultValue: "发送" })}
+                    </Button>
+                </div>
+            </footer>
+
+            <WhaleWidget />
+
+            {/* 触发词弹窗（内含两个小游戏）：打开时才读该存档的通关次数 */}
+            {tipKind && <TipUnlockDialog kind={tipKind} onClose={() => setTipKind(null)} />}
+        </div>
+    );
+}
+
+/**
+ * 记忆卡片：展示已挑选保留的记忆，并支持追加一条新记忆。
+ * 这些记忆会随每次对话带给鲸鱼娘，确保不因上下文变长而丢失。
+ */
+function MemoryCard({
+    memories,
+    onSave,
+}: {
+    memories: SavedMemory[];
+    onSave: (content: string, note?: string) => void;
+}) {
+    const { t } = useTranslation(["ui"]);
+    const [draft, setDraft] = useState("");
+    const [note, setNote] = useState("");
+
+    const handleSave = () => {
+        if (!draft.trim()) return;
+        onSave(draft, note.trim() || undefined);
+        setDraft("");
+        setNote("");
+    };
+
+    return (
+        <div className="mx-auto w-full max-w-md rounded-2xl border border-sky-200 bg-sky-50/70 p-4 shadow-sm backdrop-blur">
+            <div className="mb-2 flex items-center gap-2 text-sky-700">
+                <ShieldCheck className="size-4" />
+                <span className="text-sm font-semibold">
+                    {t("memory_title", { defaultValue: "记忆盒子" })}
+                </span>
+                <span className="text-xs text-sky-500">
+                    {t("memory_hint", {
+                        defaultValue: "写下想一直记住的事，我会永远带着",
+                    })}
+                </span>
+            </div>
+
+            {/* 已保存的记忆列表 */}
+            {memories.length > 0 && (
+                <ul className="mb-3 space-y-1.5 text-sm text-sky-900">
+                    {memories.map((m) => (
+                        <li key={m.id} className="flex items-start gap-1.5">
+                            <span className="mt-0.5 text-sky-400">•</span>
+                            <span>
+                                {m.content}
+                                {m.note ? (
+                                    <span className="ml-1 text-xs text-sky-500">（{m.note}）</span>
+                                ) : null}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            {/* 追加记忆 */}
+            <div className="space-y-2">
+                <Input
+                    value={draft}
+                    placeholder={t("memory_input_placeholder", {
+                        defaultValue: "比如：今天我们一起去看了海边的日落……",
+                    })}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSave();
+                        }
+                    }}
+                    className="border-sky-200 bg-white/80"
+                />
+                <Input
+                    value={note}
+                    placeholder={t("memory_note_placeholder", { defaultValue: "备注（可选）" })}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="border-sky-200 bg-white/80 text-xs"
+                />
+                <Button size="sm" onClick={handleSave} disabled={!draft.trim()} className="w-full">
+                    <ShieldCheck className="size-4" />
+                    {t("memory_save_btn", { defaultValue: "收进记忆盒子" })}
+                </Button>
+            </div>
+        </div>
+    );
+}

@@ -1,0 +1,35 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+.assetpack
+public/assets
+
+# Environment
+.env
+.env.*
+
+# Build output
+release
+release-v2
+build/electron-dist
+# 番外视频体积过大（两段合计 124MB），只随安装包 / 作品站分发，不进 git
+public/videos/
+# 素材替换前的本地快照，仅用于比对，不进仓库
+.snapshot/
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
